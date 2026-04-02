@@ -8,7 +8,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { useGlobalFetching } from '../../hooks/useSheets'
 import { LOADING_MESSAGES } from '../../api/config'
 
-const LOGO = '/logo.png'
+const LOGO = `${import.meta.env.BASE_URL}logo.png`
 
 export function LoadingOverlay() {
   const isFetching = useGlobalFetching()

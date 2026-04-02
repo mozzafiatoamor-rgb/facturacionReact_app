@@ -3,7 +3,7 @@
 import { useAuth } from '../../auth/AuthContext'
 import { useGlobalFetching } from '../../hooks/useSheets'
 
-const LOGO = '/logo.png'
+const LOGO = `${import.meta.env.BASE_URL}logo.png`
 
 interface StatusBarProps {
   title?: string

@@ -10,7 +10,7 @@ import { useUsuarios } from '../hooks/useSheets'
 import type { Usuario } from '../api/types'
 import { useToast } from '../hooks/useToast'
 
-const LOGO = '/logo.png'
+const LOGO = `${import.meta.env.BASE_URL}logo.png`
 const ROL_LABEL: Record<string, string> = {
   mesero:   '🍽️ Mesero',
   admin:    '⚙️ Admin',

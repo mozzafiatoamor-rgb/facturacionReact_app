@@ -9,7 +9,7 @@ import { useAuth } from './AuthContext'
 import type { AppConfig } from '../api/types'
 import { useToast } from '../hooks/useToast'
 
-const LOGO = '/logo.png'
+const LOGO = `${import.meta.env.BASE_URL}logo.png`
 
 export function SetupScreen() {
   const { config, saveConfig } = useAuth()
