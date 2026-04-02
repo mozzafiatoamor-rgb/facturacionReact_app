@@ -1,11 +1,11 @@
 // ============================================================
 // CLIENTEPAGE.TSX — Paso 2: Búsqueda RFC + datos fiscales
 // Fase 1: búsqueda libre
-// Fase 2: formulario completo — el back requiere PIN del mesero
-//         para que el cliente NO pueda regresar y modificar montos
+// Fase 2: formulario — el back (header, Android, swipe) requiere PIN
+//         del mesero para que el cliente NO pueda cambiar montos
 // ============================================================
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { StatusBar } from '../components/layout/StatusBar'
 import { ClienteForm } from '../components/forms/ClienteForm'
@@ -29,12 +29,35 @@ export function ClientePage({ order, onNext, onBack }: ClientePageProps) {
   const { data: clientes = [] } = useClientes()
   const { user } = useAuth()
 
-  const [rfcInput,        setRfcInput  ] = useState('')
-  const [selectedCliente, setSelected  ] = useState<Cliente | null>(null)
-  const [isNew,           setIsNew     ] = useState(false)
-  const [showPinGuard,    setShowPin   ] = useState(false)
+  const [rfcInput,        setRfcInput] = useState('')
+  const [selectedCliente, setSelected] = useState<Cliente | null>(null)
+  const [isNew,           setIsNew   ] = useState(false)
+  const [showPinGuard,    setShowPin ] = useState(false)
 
-  // Sugerencias RFC/razón social
+  // ── Interceptar back nativo (Android + swipe) en Fase 2 ────
+  // Cuando el cliente selecciona sus datos, empujamos un estado
+  // fantasma al historial. Si el teléfono dispara popstate,
+  // re-empujamos para no salir y abrimos el PIN modal.
+  useEffect(() => {
+    if (!selectedCliente) return
+
+    // Estado fantasma: impide que el back nativo abandone la pantalla
+    window.history.pushState({ pinGuard: true }, '')
+
+    function handlePopState() {
+      // Re-empujar para mantener la pantalla en el historial
+      window.history.pushState({ pinGuard: true }, '')
+      // Mostrar PIN en lugar de navegar
+      setShowPin(true)
+    }
+
+    window.addEventListener('popstate', handlePopState)
+    return () => {
+      window.removeEventListener('popstate', handlePopState)
+    }
+  }, [selectedCliente])
+
+  // Sugerencias RFC / razón social
   const suggestions = useMemo(() => {
     const q = rfcInput.trim().toUpperCase()
     if (q.length < 2) return []
@@ -62,26 +85,25 @@ export function ClientePage({ order, onNext, onBack }: ClientePageProps) {
     setIsNew(true)
   }
 
-  // ── Botón back ─────────────────────────────────────────────
-  // Fase 1 (sin cliente seleccionado): back libre → vuelve a mesero
-  // Fase 2 (cliente seleccionado): back requiere PIN del mesero
-  //   opción A → PIN correcto: va a mesero
-  //   opción B → PIN correcto desde cliente seleccionado: desselecciona (vuelve a búsqueda)
+  // ── Back desde el botón ‹ del header ───────────────────────
   function handleBack() {
     if (!selectedCliente) {
-      // Fase 1: back seguro, no hay datos del cliente en pantalla
-      onBack()
+      onBack()          // Fase 1: libre, no hay datos sensibles visibles
     } else {
-      // Fase 2: el cliente está viendo su formulario — pedir PIN al mesero
-      setShowPin(true)
+      setShowPin(true)  // Fase 2: requiere PIN
     }
   }
 
+  // ── PIN correcto → limpiar el estado fantasma y volver ─────
   function handlePinSuccess() {
     setShowPin(false)
-    // Limpiar selección → vuelve a la búsqueda de RFC (no sale de la pantalla de cliente)
-    setSelected(null)
-    setRfcInput('')
+    // Quitar el estado fantasma del historial antes de salir
+    window.history.back()
+    // Pequeño delay para que history.back() complete antes de navegar
+    setTimeout(() => {
+      setSelected(null)
+      setRfcInput('')
+    }, 50)
   }
 
   return (
@@ -125,7 +147,6 @@ export function ClientePage({ order, onNext, onBack }: ClientePageProps) {
                     className="input w-full"
                   />
 
-                  {/* Autocomplete */}
                   {suggestions.length > 0 && (
                     <div className="absolute top-full left-0 right-0 bg-surface2 border border-accent/30 border-t-0 rounded-b-xl z-10 max-h-52 overflow-y-auto shadow-xl">
                       {suggestions.map((c) => (
@@ -203,7 +224,7 @@ export function ClientePage({ order, onNext, onBack }: ClientePageProps) {
         </AnimatePresence>
       </div>
 
-      {/* PIN Guard — se activa al intentar retroceder en Fase 2 */}
+      {/* PIN Guard — se activa en back header O back nativo del teléfono */}
       <PinGuardModal
         open={showPinGuard}
         userName={user?.nombre ?? 'Mesero'}
