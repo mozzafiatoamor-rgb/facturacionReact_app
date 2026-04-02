@@ -3,8 +3,9 @@
 // Router manual basado en FlowStep + gestión de estado de flujo
 // ============================================================
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
+import { useQueryClient } from '@tanstack/react-query'
 
 import { useAuth } from './auth/AuthContext'
 import { SetupScreen  } from './auth/SetupScreen'
@@ -20,6 +21,8 @@ import { ToastContainer } from './components/shared/Toast'
 import { useToast } from './hooks/useToast'
 import { useOfflineSync } from './hooks/useOfflineSync'
 import { useNuevaSolicitud } from './hooks/useSheets'
+import { fetchSolicitudes, fetchClientes, fetchUsuarios, fetchBitacora } from './api/sheets'
+import { QUERY_KEYS, STALE_TIMES } from './api/config'
 
 import type { FlowStep, CurrentOrder } from './api/types'
 import type { ClienteFormData } from './components/forms/ClienteForm'
@@ -35,6 +38,7 @@ export default function App() {
   const { step, setStep, user, logout } = useAuth()
   const { toasts, toast, dismiss } = useToast()
   const nuevaSolicitudMut = useNuevaSolicitud()
+  const queryClient = useQueryClient()
 
   // Estado del flujo de solicitud
   const [order,   setOrder  ] = useState<CurrentOrder | null>(null)
@@ -43,6 +47,18 @@ export default function App() {
 
   // Sync offline en background
   useOfflineSync()
+
+  // ── Prefetch de todos los datos en cuanto el usuario hace login ──
+  // Esto arranca la carga ANTES de que el usuario navegue a cualquier página,
+  // eliminando el tiempo muerto entre login y primer uso real.
+  useEffect(() => {
+    if (!user) return
+    // prefetchQuery respeta el staleTime: no re-fetcha si los datos son frescos
+    queryClient.prefetchQuery({ queryKey: QUERY_KEYS.solicitudes, queryFn: fetchSolicitudes, staleTime: STALE_TIMES.solicitudes })
+    queryClient.prefetchQuery({ queryKey: QUERY_KEYS.clientes,    queryFn: fetchClientes,    staleTime: STALE_TIMES.clientes    })
+    queryClient.prefetchQuery({ queryKey: QUERY_KEYS.usuarios,    queryFn: fetchUsuarios,    staleTime: STALE_TIMES.usuarios    })
+    queryClient.prefetchQuery({ queryKey: QUERY_KEYS.bitacora,    queryFn: fetchBitacora,    staleTime: STALE_TIMES.bitacora    })
+  }, [user, queryClient])
 
   // ── Navegación ────────────────────────────────────────
   const navigate = useCallback((s: string) => {

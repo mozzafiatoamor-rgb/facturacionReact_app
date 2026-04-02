@@ -1,5 +1,7 @@
-// ── LoadingOverlay — Logo + spinner + mensajes motivacionales
-// Delay de 150ms para evitar flicker en cargas rápidas
+// ============================================================
+// LOADINGOVERLAY.TSX — Logo + frases motivacionales + puntos animados
+// Delay 150ms para evitar flicker en cargas rápidas
+// ============================================================
 
 import { useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
@@ -10,10 +12,11 @@ const LOGO = '/logo.png'
 
 export function LoadingOverlay() {
   const isFetching = useGlobalFetching()
-  const [visible, setVisible] = useState(false)
+  const [visible,  setVisible ] = useState(false)
   const [msgIndex, setMsgIndex] = useState(0)
+  const [logoErr,  setLogoErr ] = useState(false)
 
-  // Delay de 150ms para evitar flicker
+  // Delay 150ms para evitar flicker en cargas muy rápidas
   useEffect(() => {
     if (isFetching) {
       const t = setTimeout(() => setVisible(true), 150)
@@ -23,12 +26,13 @@ export function LoadingOverlay() {
     }
   }, [isFetching])
 
-  // Rotar mensajes cada 2 s
+  // Rotar mensajes cada 2.2 s
   useEffect(() => {
     if (!visible) return
+    setMsgIndex(Math.floor(Math.random() * LOADING_MESSAGES.length))
     const t = setInterval(() => {
-      setMsgIndex((i) => (i + 1) % LOADING_MESSAGES.length)
-    }, 2000)
+      setMsgIndex(() => Math.floor(Math.random() * LOADING_MESSAGES.length))
+    }, 2200)
     return () => clearInterval(t)
   }, [visible])
 
@@ -36,32 +40,62 @@ export function LoadingOverlay() {
     <AnimatePresence>
       {visible && (
         <motion.div
-          key="overlay"
+          key="loading-overlay"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.2 }}
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex flex-col items-center justify-center gap-4"
+          transition={{ duration: 0.25 }}
+          className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-5"
+          style={{ background: 'rgba(14, 23, 38, 0.92)', backdropFilter: 'blur(6px)' }}
         >
-          <img
-            src={LOGO}
-            alt="Logo"
-            className="h-14 w-auto object-contain"
-            onError={(e) => {
-              const el = e.currentTarget as HTMLImageElement
-              el.outerHTML = '<span class="text-5xl">🧾</span>'
-            }}
-          />
-          <div className="w-10 h-10 border-3 border-white/20 border-t-accent rounded-full animate-spin" />
-          <motion.p
-            key={msgIndex}
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            className="text-sm text-muted"
+          {/* Logo */}
+          <motion.div
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1,   opacity: 1 }}
+            transition={{ type: 'spring', damping: 18, stiffness: 200 }}
           >
-            {LOADING_MESSAGES[msgIndex]}
-          </motion.p>
+            {!logoErr ? (
+              <img
+                src={LOGO}
+                alt="Logo"
+                className="h-20 w-auto object-contain drop-shadow-xl"
+                onError={() => setLogoErr(true)}
+              />
+            ) : (
+              <span className="text-6xl">🧾</span>
+            )}
+          </motion.div>
+
+          {/* Puntos de carga animados */}
+          <div className="flex gap-2">
+            {[0, 1, 2].map((i) => (
+              <motion.div
+                key={i}
+                className="w-2 h-2 rounded-full bg-accent"
+                animate={{ y: [0, -8, 0], opacity: [0.4, 1, 0.4] }}
+                transition={{
+                  duration: 0.9,
+                  repeat: Infinity,
+                  delay: i * 0.18,
+                  ease: 'easeInOut',
+                }}
+              />
+            ))}
+          </div>
+
+          {/* Frase motivacional */}
+          <AnimatePresence mode="wait">
+            <motion.p
+              key={msgIndex}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{    opacity: 0, y: -8 }}
+              transition={{ duration: 0.35 }}
+              className="text-sm text-muted text-center max-w-[220px] leading-relaxed"
+            >
+              {LOADING_MESSAGES[msgIndex]}
+            </motion.p>
+          </AnimatePresence>
         </motion.div>
       )}
     </AnimatePresence>
