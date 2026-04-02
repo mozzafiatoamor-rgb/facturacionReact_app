@@ -99,7 +99,7 @@ export default function App() {
   }
 
   return (
-    <div className="font-sans antialiased text-white">
+    <div className="font-sans antialiased text-white h-dvh overflow-hidden">
         {/* Transiciones de pantalla */}
         <AnimatePresence mode="wait">
           <motion.div
@@ -109,6 +109,7 @@ export default function App() {
             animate="animate"
             exit="exit"
             transition={{ duration: 0.2 }}
+            className="h-full"
           >
             {step === 'setup' && <SetupScreen />}
 

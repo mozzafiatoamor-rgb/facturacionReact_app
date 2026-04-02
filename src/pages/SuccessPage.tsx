@@ -22,7 +22,7 @@ export function SuccessPage({ order, cliente, onNueva, onHome }: SuccessPageProp
   }, [])
 
   return (
-    <div className="min-h-dvh bg-bg flex flex-col items-center justify-center px-6 text-center">
+    <div className="h-full bg-bg flex flex-col items-center justify-center px-6 text-center">
       {/* Checkmark animado */}
       <motion.div
         initial={{ scale: 0, rotate: -20 }}

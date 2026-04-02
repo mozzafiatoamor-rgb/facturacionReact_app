@@ -38,7 +38,7 @@ export function ConfirmPage({
   const tipoPagoLabel = TIPOS_PAGO.find((t) => t.clave  === order.tipoPago)?.label ?? order.tipoPago
 
   return (
-    <div className="min-h-dvh bg-bg flex flex-col">
+    <div className="h-full bg-bg flex flex-col">
       <StatusBar title="✅ Confirmar Solicitud" onBack={onBack} />
 
       <div className="flex-1 px-4 pt-5 pb-8 max-w-sm mx-auto w-full overflow-y-auto">

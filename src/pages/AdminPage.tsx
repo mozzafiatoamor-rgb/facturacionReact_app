@@ -114,7 +114,7 @@ export function AdminPage({ onNavigate }: AdminPageProps) {
   }
 
   return (
-    <div className="min-h-dvh bg-bg flex flex-col">
+    <div className="h-full bg-bg flex flex-col">
       <StatusBar
         title="⚙️ Administración"
         action={

@@ -33,7 +33,7 @@ export function SetupScreen() {
   }
 
   return (
-    <div className="min-h-dvh bg-bg flex flex-col items-center justify-start px-4 pt-10 pb-8">
+    <div className="h-full bg-bg flex flex-col items-center justify-start overflow-y-auto px-4 pt-10 pb-8">
       <motion.div
         initial={{ opacity: 0, y: 24 }}
         animate={{ opacity: 1, y: 0 }}

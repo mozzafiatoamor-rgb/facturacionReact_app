@@ -35,10 +35,10 @@ export function MeseroPage({ initial, onNext, onBack, userName }: MeseroPageProp
   }
 
   return (
-    <div className="min-h-dvh bg-bg flex flex-col">
+    <div className="h-full bg-bg flex flex-col">
       <StatusBar title="🍽️ Nueva Solicitud" subtitle={userName} onBack={onBack} />
 
-      <div className="flex-1 px-4 pt-5 pb-8 max-w-sm mx-auto w-full">
+      <div className="flex-1 px-4 pt-5 pb-8 max-w-sm mx-auto w-full overflow-y-auto">
         {/* Step indicator */}
         <StepIndicator current={0} steps={STEPS} />
 

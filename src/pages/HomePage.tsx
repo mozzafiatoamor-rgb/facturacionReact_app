@@ -37,7 +37,7 @@ export function HomePage({ onNavigate }: HomePageProps) {
   const montoHoy   = hoy.reduce((acc, s) => acc + parseFloat(s.monto || '0'), 0)
 
   return (
-    <div className="min-h-dvh bg-bg flex flex-col">
+    <div className="h-full bg-bg flex flex-col">
       <StatusBar
         action={
           <button
@@ -49,7 +49,7 @@ export function HomePage({ onNavigate }: HomePageProps) {
         }
       />
 
-      <div className="flex-1 px-4 pt-5 pb-24 max-w-lg mx-auto w-full">
+      <div className="flex-1 px-4 pt-5 pb-24 max-w-lg mx-auto w-full overflow-y-auto">
         {/* Bienvenida */}
         <motion.div
           initial={{ opacity: 0, y: 16 }}

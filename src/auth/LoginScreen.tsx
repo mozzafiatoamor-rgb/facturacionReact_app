@@ -70,7 +70,7 @@ export function LoginScreen() {
   const isConnected = !isLoading && !isError && active.length > 0
 
   return (
-    <div className="min-h-dvh bg-bg flex flex-col">
+    <div className="h-full bg-bg flex flex-col">
       {/* Header */}
       <div className="bg-surface border-b border-white/10 px-4 py-3 flex items-center gap-2.5 sticky top-0 z-10">
         <img
@@ -102,7 +102,7 @@ export function LoginScreen() {
       </div>
 
       {/* Body */}
-      <div className="flex-1 px-4 pt-6 pb-8 max-w-sm mx-auto w-full">
+      <div className="flex-1 px-4 pt-6 pb-8 max-w-sm mx-auto w-full overflow-y-auto">
         <div className="text-center mb-5">
           <h2 className="text-2xl font-bold text-white">Iniciar Sesión</h2>
           <p className="text-sm text-muted mt-1">Selecciona tu usuario</p>

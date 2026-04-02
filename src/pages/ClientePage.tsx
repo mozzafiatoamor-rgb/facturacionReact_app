@@ -61,7 +61,7 @@ export function ClientePage({ order, onNext, onBack }: ClientePageProps) {
   }
 
   return (
-    <div className="min-h-dvh bg-bg flex flex-col">
+    <div className="h-full bg-bg flex flex-col">
       <StatusBar
         title="🧾 Datos Fiscales"
         subtitle={`Mesa ${order.mesa} · $${order.monto}`}

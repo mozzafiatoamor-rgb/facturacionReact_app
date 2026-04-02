@@ -55,8 +55,11 @@ export function ClienteForm({
 
   // ── Detección de duplicados ────────────────────────────
   const { exactMatch, similarMatches } = useMemo(() => {
+    // Solo detectar duplicados cuando es un cliente NUEVO
+    // Para clientes existentes la detección no aplica
+    if (!isNewCliente) return { exactMatch: null, similarMatches: [] }
+
     const rs = form.razonSocial.trim()
-    // Exacto: mínimo 3 chars. Similar: mínimo 6 chars para evitar falsos positivos
     if (!rs || rs.length < 3) return { exactMatch: null, similarMatches: [] }
 
     const candidates = clientes.filter((c) => c.id !== editingId)
@@ -72,7 +75,7 @@ export function ClienteForm({
           .slice(0, 5)
 
     return { exactMatch: exact, similarMatches: similar }
-  }, [form.razonSocial, clientes, editingId])
+  }, [form.razonSocial, clientes, editingId, isNewCliente])
 
   // Bloqueo si hay duplicado exacto o se seleccionó una sugerencia
   const isBlocked =
