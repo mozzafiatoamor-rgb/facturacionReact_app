@@ -28,7 +28,7 @@ export function normalize(text: string): string {
  * Extrae palabras clave (≥4 chars) de un texto normalizado.
  */
 export function keywords(text: string): string[] {
-  return normalize(text).split(' ').filter((w) => w.length >= 4)
+  return normalize(text).split(' ').filter((w) => w.length >= 5)
 }
 
 /**

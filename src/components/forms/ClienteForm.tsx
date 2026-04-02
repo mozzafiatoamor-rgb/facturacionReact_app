@@ -4,7 +4,7 @@
 // Cierre optimista: modal se cierra antes de confirmar el POST
 // ============================================================
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { useClientes } from '../../hooks/useSheets'
 import { normalize, hasSimilarKeywords } from '../../utils/ids'
 import { REGIMENES, USOS_CFDI } from '../../api/config'
@@ -22,10 +22,10 @@ export interface ClienteFormData {
 
 interface ClienteFormProps {
   initial?:         Partial<ClienteFormData>
-  editingId?:       string
+  editingId?:       string   // excluir de búsqueda de duplicados (modo edición)
   isNewCliente?:    boolean
   onSubmit:         (data: ClienteFormData, isNew: boolean) => void
-  onRfcSearch?:     (rfc: string) => void
+  onRfcSearch?:     (rfc: string) => void   // callback cuando RFC cambia (fase 1)
   submitLabel?:     string
 }
 
@@ -56,7 +56,8 @@ export function ClienteForm({
   // ── Detección de duplicados ────────────────────────────
   const { exactMatch, similarMatches } = useMemo(() => {
     const rs = form.razonSocial.trim()
-    if (!rs || rs.length < 2) return { exactMatch: null, similarMatches: [] }
+    // Exacto: mínimo 3 chars. Similar: mínimo 6 chars para evitar falsos positivos
+    if (!rs || rs.length < 3) return { exactMatch: null, similarMatches: [] }
 
     const candidates = clientes.filter((c) => c.id !== editingId)
 
@@ -64,7 +65,7 @@ export function ClienteForm({
       (c) => normalize(c.razonSocial) === normalize(rs),
     ) ?? null
 
-    const similar = exact
+    const similar = exact || rs.length < 6
       ? []
       : candidates
           .filter((c) => hasSimilarKeywords(c.razonSocial, rs))
@@ -73,6 +74,7 @@ export function ClienteForm({
     return { exactMatch: exact, similarMatches: similar }
   }, [form.razonSocial, clientes, editingId])
 
+  // Bloqueo si hay duplicado exacto o se seleccionó una sugerencia
   const isBlocked =
     (exactMatch !== null) ||
     (selectedSuggestion !== null && normalize(form.razonSocial) === normalize(selectedSuggestion.razonSocial))
@@ -88,6 +90,7 @@ export function ClienteForm({
       e.email = 'Email inválido'
     }
 
+    // Guard final contra duplicados (aunque el usuario evite el dropdown)
     const exact = clientes.find(
       (c) => c.id !== editingId && normalize(c.razonSocial) === normalize(form.razonSocial),
     )
@@ -122,12 +125,14 @@ export function ClienteForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
+      {/* Nuevo cliente banner */}
       {isNewCliente && (
         <div className="bg-info/10 border border-info/30 rounded-lg px-3 py-2 text-xs text-info">
           ✨ Nuevo cliente — sus datos se guardarán automáticamente
         </div>
       )}
 
+      {/* RFC */}
       <Field label="RFC" error={errors.rfc}>
         <input
           value={form.rfc}
@@ -139,6 +144,7 @@ export function ClienteForm({
         />
       </Field>
 
+      {/* Razón Social con detección de duplicados */}
       <Field label="Razón Social / Nombre" error={errors.razonSocial}>
         <input
           value={form.razonSocial}
@@ -153,12 +159,14 @@ export function ClienteForm({
           }`}
         />
 
+        {/* Nivel 1: duplicado exacto → bloqueo rojo */}
         {exactMatch && (
           <p className="text-xs text-danger mt-1 flex items-center gap-1">
             🚫 Ya existe: <strong>{exactMatch.razonSocial}</strong> ({exactMatch.rfc})
           </p>
         )}
 
+        {/* Nivel 2: similares → sugerencias */}
         {!exactMatch && similarMatches.length > 0 && (
           <div className="mt-1 border border-warning/40 rounded-lg overflow-hidden">
             <p className="text-xs text-warning px-3 py-1.5 bg-warning/5 border-b border-warning/20">
@@ -178,6 +186,7 @@ export function ClienteForm({
           </div>
         )}
 
+        {/* Aviso de sugerencia seleccionada bloqueada */}
         {selectedSuggestion && isBlocked && (
           <p className="text-xs text-warning mt-1">
             ⚠️ Cliente existente seleccionado. Escribe un nombre diferente para registrar uno nuevo.
@@ -185,6 +194,7 @@ export function ClienteForm({
         )}
       </Field>
 
+      {/* Régimen Fiscal */}
       <Field label="Régimen Fiscal" error={errors.regimen}>
         <select
           value={form.regimen}
@@ -200,6 +210,7 @@ export function ClienteForm({
         </select>
       </Field>
 
+      {/* Uso CFDI */}
       <Field label="Uso CFDI" error={errors.usoCfdi}>
         <select
           value={form.usoCfdi}
@@ -215,6 +226,7 @@ export function ClienteForm({
         </select>
       </Field>
 
+      {/* Email */}
       <Field label="Email (para confirmación)" error={errors.email}>
         <input
           value={form.email}
@@ -226,6 +238,7 @@ export function ClienteForm({
         />
       </Field>
 
+      {/* CP + Teléfono en row */}
       <div className="grid grid-cols-2 gap-3">
         <Field label="C.P." error={errors.codigoPostal}>
           <input
