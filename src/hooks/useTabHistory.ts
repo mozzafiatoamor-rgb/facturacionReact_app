@@ -21,12 +21,13 @@ export function useTabHistory(
 
   // Sincronizar pushState al cambiar step
   useEffect(() => {
-    const last = stackRef.current.at(-1)
+    const stack = stackRef.current
+    const last = stack[stack.length - 1]
     if (last === step) return
 
     // Push nuevo estado a la historia del browser
     window.history.pushState({ step }, '', window.location.href)
-    stackRef.current = [...stackRef.current, step]
+    stackRef.current = [...stack, step]
   }, [step])
 
   // Interceptar botón back de Android / browser
@@ -38,7 +39,8 @@ export function useTabHistory(
         stackRef.current = stackRef.current.slice(0, -1)
       } else if (stackRef.current.length > 1) {
         stackRef.current = stackRef.current.slice(0, -1)
-        const prev = stackRef.current.at(-1)
+        const stack = stackRef.current
+        const prev = stack[stack.length - 1]
         if (prev) push(prev)
       }
       onBack?.()
