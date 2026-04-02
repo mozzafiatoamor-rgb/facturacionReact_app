@@ -4,7 +4,7 @@
 // Cierre optimista: modal se cierra antes de confirmar el POST
 // ============================================================
 
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo } from 'react'
 import { useClientes } from '../../hooks/useSheets'
 import { normalize, hasSimilarKeywords } from '../../utils/ids'
 import { REGIMENES, USOS_CFDI } from '../../api/config'
