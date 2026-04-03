@@ -10,8 +10,7 @@ import type { AppConfig } from '../api/types'
 import { useToast } from '../hooks/useToast'
 
 const B = import.meta.env.BASE_URL
-const LOGO = `${B}logo.png`
-const LOGO_FB = `${B}icon-192.png`
+const SRCS = [`${B}logo.png`, `${B}icon-192.png`]
 
 export function SetupScreen() {
   const { config, saveConfig } = useAuth()
@@ -43,19 +42,7 @@ export function SetupScreen() {
         className="w-full max-w-sm"
       >
         {/* Logo */}
-        <img
-          src={LOGO}
-          alt="Logo"
-          className="h-16 w-auto mx-auto mb-3 object-contain"
-          onError={(e) => {
-            const el = e.currentTarget as HTMLImageElement
-            if (el.getAttribute('src') !== LOGO_FB) {
-              el.setAttribute('src', LOGO_FB)
-            } else {
-              el.outerHTML = '<div class="text-5xl text-center mb-3">🧾</div>'
-            }
-          }}
-        />
+        <SetupLogo />
         <h1 className="text-center text-xl font-bold mb-1 text-white">
           Mozzafiato Facturas
         </h1>
@@ -117,6 +104,20 @@ export function SetupScreen() {
         </p>
       </motion.div>
     </div>
+  )
+}
+
+function SetupLogo() {
+  const [idx, setIdx] = useState(0)
+  if (idx >= SRCS.length) return <div className="text-5xl text-center mb-3">🧾</div>
+  return (
+    <img
+      key={SRCS[idx]}
+      src={SRCS[idx]}
+      alt="Logo"
+      className="h-16 w-auto mx-auto mb-3 object-contain"
+      onError={() => setIdx((i) => i + 1)}
+    />
   )
 }
 

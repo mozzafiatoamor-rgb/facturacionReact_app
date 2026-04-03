@@ -1,11 +1,11 @@
 // ── StatusBar — Header sticky con logo + usuario + conexión
 
+import { useState } from 'react'
 import { useAuth } from '../../auth/AuthContext'
 import { useGlobalFetching } from '../../hooks/useSheets'
 
 const B = import.meta.env.BASE_URL
-const LOGO = `${B}logo.png`
-const LOGO_FB = `${B}icon-192.png`
+const SRCS = [`${B}logo.png`, `${B}icon-192.png`]
 
 interface StatusBarProps {
   title?: string
@@ -17,6 +17,11 @@ interface StatusBarProps {
 export function StatusBar({ title, subtitle, onBack, action }: StatusBarProps) {
   const { user } = useAuth()
   const isFetching = useGlobalFetching()
+  const [srcIdx, setSrcIdx] = useState(0)
+
+  function handleLogoError() {
+    setSrcIdx((i) => i + 1) // intenta el siguiente src
+  }
 
   return (
     <header className="bg-surface border-b border-white/10 px-4 py-3 flex items-center gap-3 sticky top-0 z-30">
@@ -30,19 +35,17 @@ export function StatusBar({ title, subtitle, onBack, action }: StatusBarProps) {
         </button>
       )}
 
-      <img
-        src={LOGO}
-        alt="Logo"
-        className="h-7 w-auto object-contain flex-shrink-0"
-        onError={(e) => {
-          const el = e.currentTarget as HTMLImageElement
-          if (el.getAttribute('src') !== LOGO_FB) {
-            el.setAttribute('src', LOGO_FB)
-          } else {
-            el.outerHTML = '<span class="text-xl">🧾</span>'
-          }
-        }}
-      />
+      {srcIdx < SRCS.length ? (
+        <img
+          key={SRCS[srcIdx]}
+          src={SRCS[srcIdx]}
+          alt="Logo"
+          className="h-7 w-auto object-contain flex-shrink-0"
+          onError={handleLogoError}
+        />
+      ) : (
+        <span className="text-xl flex-shrink-0">🧾</span>
+      )}
 
       <div className="flex-1 min-w-0">
         {title && (

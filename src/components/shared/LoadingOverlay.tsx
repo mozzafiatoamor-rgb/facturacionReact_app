@@ -9,14 +9,13 @@ import { useGlobalFetching } from '../../hooks/useSheets'
 import { LOADING_MESSAGES } from '../../api/config'
 
 const B = import.meta.env.BASE_URL
-const LOGO = `${B}logo.png`
-const LOGO_FB = `${B}icon-192.png`
+const SRCS = [`${B}logo.png`, `${B}icon-192.png`]
 
 export function LoadingOverlay() {
   const isFetching = useGlobalFetching()
   const [visible,  setVisible ] = useState(false)
   const [msgIndex, setMsgIndex] = useState(0)
-  const [logoErr,  setLogoErr ] = useState(false)
+  const [srcIdx,   setSrcIdx  ] = useState(0)
 
   // Delay 150ms para evitar flicker en cargas muy rápidas
   useEffect(() => {
@@ -56,19 +55,13 @@ export function LoadingOverlay() {
             animate={{ scale: 1,   opacity: 1 }}
             transition={{ type: 'spring', damping: 18, stiffness: 200 }}
           >
-            {!logoErr ? (
+            {srcIdx < SRCS.length ? (
               <img
-                src={LOGO}
+                key={SRCS[srcIdx]}
+                src={SRCS[srcIdx]}
                 alt="Logo"
                 className="h-20 w-auto object-contain drop-shadow-xl"
-                onError={(e) => {
-                  const el = e.currentTarget
-                  if (el.getAttribute('src') !== LOGO_FB) {
-                    el.setAttribute('src', LOGO_FB)
-                  } else {
-                    setLogoErr(true)
-                  }
-                }}
+                onError={() => setSrcIdx((i) => i + 1)}
               />
             ) : (
               <span className="text-6xl">🧾</span>
