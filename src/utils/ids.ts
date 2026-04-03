@@ -1,13 +1,13 @@
 // ── Generación de IDs únicos ──────────────────────────────
 
 /**
- * Genera ID único con prefijo + timestamp + random corto.
- * Ej: "SOL-1712345678-42"
+ * Genera ID corto con prefijo + últimos 4 dígitos del timestamp + 2 random.
+ * Ej: "SOL-3F1A"  (~8 chars en total)
  */
 export function generateId(prefix: string): string {
-  const ts   = Date.now()
-  const rand = Math.floor(Math.random() * 100)
-  return `${prefix}-${ts}-${rand}`
+  const ts   = Date.now().toString(36).slice(-4)  // últimos 4 chars del timestamp
+  const rand = Math.floor(Math.random() * 36).toString(36)
+  return `${prefix}-${ts}${rand}`.toUpperCase()
 }
 
 /**

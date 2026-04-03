@@ -29,6 +29,16 @@ interface ClienteFormProps {
   submitLabel?:     string
 }
 
+// Helper: dado un código, devuelve "código - descripción"
+function fullRegimen(clave: string): string {
+  const r = REGIMENES.find((x) => x.clave === clave || clave.startsWith(x.clave))
+  return r ? `${r.clave} - ${r.desc}` : clave
+}
+function fullUsoCfdi(clave: string): string {
+  const u = USOS_CFDI.find((x) => x.clave === clave || clave.startsWith(x.clave))
+  return u ? `${u.clave} - ${u.desc}` : clave
+}
+
 const EMPTY: ClienteFormData = {
   rfc: '', razonSocial: '', regimen: '626', usoCfdi: 'G03',
   email: '', codigoPostal: '', telefono: '',
@@ -108,7 +118,13 @@ export function ClienteForm({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!validate()) return
-    onSubmit({ ...form, rfc: form.rfc.toUpperCase() }, isNewCliente ?? false)
+    // Enviar régimen y uso CFDI como texto completo (clave - descripción)
+    onSubmit({
+      ...form,
+      rfc:     form.rfc.toUpperCase(),
+      regimen: fullRegimen(form.regimen),
+      usoCfdi: fullUsoCfdi(form.usoCfdi),
+    }, isNewCliente ?? false)
   }
 
   function selectSuggestion(c: Cliente) {

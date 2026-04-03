@@ -15,7 +15,7 @@ import { enqueueOp } from '../store/db'
 import { QUERY_KEYS, STALE_TIMES } from '../api/config'
 import { now } from '../utils/dates'
 import { generateId } from '../utils/ids'
-import type { Solicitud, Cliente, BatchItem } from '../api/types'
+import type { Solicitud, Cliente, BatchItem, EmailData } from '../api/types'
 import { SHEET_NAMES } from '../api/config'
 
 // ── Lecturas ───────────────────────────────────────────────
@@ -100,8 +100,9 @@ export function useNuevaSolicitud() {
       // Filas para batchAppend
       const items: BatchItem[] = []
 
-      // Fila de solicitud
-      const regimenStr = input.regimen   // guardar solo clave
+      // regimen y usoCfdi ya vienen como texto completo desde el formulario
+      // Ej: "626 - Régimen Simplificado de Confianza (RESICO)"
+      const regimenStr = input.regimen
       const cfdiStr    = input.usoCfdi
       items.push({
         sheet: SHEET_NAMES.solicitudes,
@@ -149,13 +150,31 @@ export function useNuevaSolicitud() {
         rows: [[date, time, input.mesero, 'Nueva Solicitud', `${input.rfc} Mesa ${input.mesa}`, 'solicitud']],
       })
 
+      // Datos para el email de confirmación (Apps Script lo usa para enviar correo)
+      const emailData: EmailData = {
+        id:          solId,
+        fecha:       date,
+        hora:        time,
+        mesa:        input.mesa,
+        monto:       input.monto,
+        tipoPago:    input.tipoPago,
+        rfc:         input.rfc,
+        razonSocial: input.razonSocial,
+        regimen:     regimenStr,
+        usoCfdi:     cfdiStr,
+        email:       input.email,
+        status:      'Pendiente',
+        mesero:      input.mesero,
+      }
+
       // Intentar enviar; si falla, encolar para offline
       try {
-        await batchAppend(items)
+        await batchAppend(items, emailData)
       } catch {
         await enqueueOp({
           type:      'batchAppend',
           items,
+          emailData,
           createdAt: Date.now(),
           retries:   0,
         })
