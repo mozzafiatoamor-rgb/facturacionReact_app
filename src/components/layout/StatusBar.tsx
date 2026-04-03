@@ -30,21 +30,19 @@ export function StatusBar({ title, subtitle, onBack, action }: StatusBarProps) {
         </button>
       )}
 
-      {!onBack && (
-        <img
-          src={LOGO}
-          alt="Logo"
-          className="h-7 w-auto object-contain flex-shrink-0"
-          onError={(e) => {
-            const el = e.currentTarget as HTMLImageElement
-            if (el.getAttribute('src') !== LOGO_FB) {
-              el.setAttribute('src', LOGO_FB)
-            } else {
-              el.outerHTML = '<span class="text-xl">🧾</span>'
-            }
-          }}
-        />
-      )}
+      <img
+        src={LOGO}
+        alt="Logo"
+        className="h-7 w-auto object-contain flex-shrink-0"
+        onError={(e) => {
+          const el = e.currentTarget as HTMLImageElement
+          if (el.getAttribute('src') !== LOGO_FB) {
+            el.setAttribute('src', LOGO_FB)
+          } else {
+            el.outerHTML = '<span class="text-xl">🧾</span>'
+          }
+        }}
+      />
 
       <div className="flex-1 min-w-0">
         {title && (
