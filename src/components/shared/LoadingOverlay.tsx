@@ -8,7 +8,9 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { useGlobalFetching } from '../../hooks/useSheets'
 import { LOADING_MESSAGES } from '../../api/config'
 
-const LOGO = `${import.meta.env.BASE_URL}logo.png`
+const B = import.meta.env.BASE_URL
+const LOGO = `${B}logo.png`
+const LOGO_FALLBACK = `${B}icon-192.png`
 
 export function LoadingOverlay() {
   const isFetching = useGlobalFetching()
@@ -59,7 +61,14 @@ export function LoadingOverlay() {
                 src={LOGO}
                 alt="Logo"
                 className="h-20 w-auto object-contain drop-shadow-xl"
-                onError={() => setLogoErr(true)}
+                onError={(e) => {
+                  const el = e.currentTarget
+                  if (el.src !== LOGO_FALLBACK) {
+                    el.src = LOGO_FALLBACK
+                  } else {
+                    setLogoErr(true)
+                  }
+                }}
               />
             ) : (
               <span className="text-6xl">🧾</span>

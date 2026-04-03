@@ -9,7 +9,9 @@ import { useAuth } from './AuthContext'
 import type { AppConfig } from '../api/types'
 import { useToast } from '../hooks/useToast'
 
-const LOGO = `${import.meta.env.BASE_URL}logo.png`
+const B = import.meta.env.BASE_URL
+const LOGO = `${B}logo.png`
+const LOGO_FALLBACK = `${B}icon-192.png`
 
 export function SetupScreen() {
   const { config, saveConfig } = useAuth()
@@ -47,7 +49,11 @@ export function SetupScreen() {
           className="h-16 w-auto mx-auto mb-3 object-contain"
           onError={(e) => {
             const el = e.currentTarget as HTMLImageElement
-            el.outerHTML = '<div class="text-5xl text-center mb-3">🧾</div>'
+            if (el.src !== LOGO_FALLBACK) {
+              el.src = LOGO_FALLBACK
+            } else {
+              el.outerHTML = '<div class="text-5xl text-center mb-3">🧾</div>'
+            }
           }}
         />
         <h1 className="text-center text-xl font-bold mb-1 text-white">

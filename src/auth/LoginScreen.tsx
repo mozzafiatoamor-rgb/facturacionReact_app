@@ -10,7 +10,9 @@ import { useUsuarios } from '../hooks/useSheets'
 import type { Usuario } from '../api/types'
 import { useToast } from '../hooks/useToast'
 
-const LOGO = `${import.meta.env.BASE_URL}logo.png`
+const B = import.meta.env.BASE_URL
+const LOGO = `${B}logo.png`
+const LOGO_FALLBACK = `${B}icon-192.png`
 const ROL_LABEL: Record<string, string> = {
   mesero:   '🍽️ Mesero',
   admin:    '⚙️ Admin',
@@ -79,7 +81,11 @@ export function LoginScreen() {
           className="h-8 w-auto object-contain flex-shrink-0"
           onError={(e) => {
             const el = e.currentTarget as HTMLImageElement
-            el.outerHTML = '<span class="text-2xl">🧾</span>'
+            if (el.src !== LOGO_FALLBACK) {
+              el.src = LOGO_FALLBACK
+            } else {
+              el.outerHTML = '<span class="text-2xl">🧾</span>'
+            }
           }}
         />
         <span className="flex-1 text-base font-bold text-white">

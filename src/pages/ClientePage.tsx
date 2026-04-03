@@ -34,13 +34,10 @@ export function ClientePage({ order, onNext, onBack }: ClientePageProps) {
   const [isNew,           setIsNew   ] = useState(false)
   const [showPinGuard,    setShowPin ] = useState(false)
 
-  // ── Interceptar back nativo (Android + swipe) en Fase 2 ────
-  // Cuando el cliente selecciona sus datos, empujamos un estado
-  // fantasma al historial. Si el teléfono dispara popstate,
-  // re-empujamos para no salir y abrimos el PIN modal.
+  // ── Interceptar back nativo (Android + swipe) SIEMPRE ──────
+  // En toda la ClientePage el back debe pedir PIN, no solo en Fase 2.
+  // El cliente no debe poder regresar al menú de meseros sin verificación.
   useEffect(() => {
-    if (!selectedCliente) return
-
     // Estado fantasma: impide que el back nativo abandone la pantalla
     window.history.pushState({ pinGuard: true }, '')
 
@@ -55,7 +52,7 @@ export function ClientePage({ order, onNext, onBack }: ClientePageProps) {
     return () => {
       window.removeEventListener('popstate', handlePopState)
     }
-  }, [selectedCliente])
+  }, []) // Se monta UNA vez al entrar a ClientePage
 
   // Sugerencias RFC / razón social
   const suggestions = useMemo(() => {
@@ -86,15 +83,12 @@ export function ClientePage({ order, onNext, onBack }: ClientePageProps) {
   }
 
   // ── Back desde el botón ‹ del header ───────────────────────
+  // SIEMPRE pide PIN — el cliente no debe poder regresar al menú de meseros
   function handleBack() {
-    if (!selectedCliente) {
-      onBack()          // Fase 1: libre, no hay datos sensibles visibles
-    } else {
-      setShowPin(true)  // Fase 2: requiere PIN
-    }
+    setShowPin(true)
   }
 
-  // ── PIN correcto → limpiar el estado fantasma y volver ─────
+  // ── PIN correcto → limpiar y regresar al menú mesero ──────
   function handlePinSuccess() {
     setShowPin(false)
     // Quitar el estado fantasma del historial antes de salir
@@ -103,6 +97,7 @@ export function ClientePage({ order, onNext, onBack }: ClientePageProps) {
     setTimeout(() => {
       setSelected(null)
       setRfcInput('')
+      onBack()
     }, 50)
   }
 
@@ -174,14 +169,7 @@ export function ClientePage({ order, onNext, onBack }: ClientePageProps) {
                 )}
               </div>
 
-              <div className="text-center mt-4">
-                <button
-                  onClick={onBack}
-                  className="btn btn-sm bg-surface2 text-muted border border-white/10"
-                >
-                  ← Cambiar datos de mesa
-                </button>
-              </div>
+              {/* El back al mesero solo se puede hacer con PIN (botón ‹ del header) */}
             </motion.div>
           )}
 
