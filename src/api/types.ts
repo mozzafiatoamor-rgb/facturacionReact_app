@@ -103,13 +103,23 @@ export interface PendingOperation {
 }
 
 // ── Datos del email de confirmación
+// Debe coincidir con lo que espera el Apps Script (doPost)
 export interface EmailData {
-  to: string
-  solId: string
+  id: string
+  fecha: string
+  hora: string
   mesa: string
   monto: string
+  tipoPago: string
   rfc: string
   razonSocial: string
+  regimen: string
+  usoCfdi: string
+  email: string
+  status: string
+  mesero: string
+  codigoPostal?: string
+  notas?: string
 }
 
 // ── Tipos de toast
