@@ -10,7 +10,7 @@ import { LOADING_MESSAGES } from '../../api/config'
 
 const B = import.meta.env.BASE_URL
 const LOGO = `${B}logo.png`
-const LOGO_FALLBACK = `${B}icon-192.png`
+const LOGO_FB = `${B}icon-192.png`
 
 export function LoadingOverlay() {
   const isFetching = useGlobalFetching()
@@ -63,8 +63,8 @@ export function LoadingOverlay() {
                 className="h-20 w-auto object-contain drop-shadow-xl"
                 onError={(e) => {
                   const el = e.currentTarget
-                  if (el.src !== LOGO_FALLBACK) {
-                    el.src = LOGO_FALLBACK
+                  if (el.getAttribute('src') !== LOGO_FB) {
+                    el.setAttribute('src', LOGO_FB)
                   } else {
                     setLogoErr(true)
                   }

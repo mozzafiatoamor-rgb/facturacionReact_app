@@ -11,7 +11,7 @@ import { useToast } from '../hooks/useToast'
 
 const B = import.meta.env.BASE_URL
 const LOGO = `${B}logo.png`
-const LOGO_FALLBACK = `${B}icon-192.png`
+const LOGO_FB = `${B}icon-192.png`
 
 export function SetupScreen() {
   const { config, saveConfig } = useAuth()
@@ -49,8 +49,8 @@ export function SetupScreen() {
           className="h-16 w-auto mx-auto mb-3 object-contain"
           onError={(e) => {
             const el = e.currentTarget as HTMLImageElement
-            if (el.src !== LOGO_FALLBACK) {
-              el.src = LOGO_FALLBACK
+            if (el.getAttribute('src') !== LOGO_FB) {
+              el.setAttribute('src', LOGO_FB)
             } else {
               el.outerHTML = '<div class="text-5xl text-center mb-3">🧾</div>'
             }

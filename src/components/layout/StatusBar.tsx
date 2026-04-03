@@ -5,7 +5,7 @@ import { useGlobalFetching } from '../../hooks/useSheets'
 
 const B = import.meta.env.BASE_URL
 const LOGO = `${B}logo.png`
-const LOGO_FALLBACK = `${B}icon-192.png`
+const LOGO_FB = `${B}icon-192.png`
 
 interface StatusBarProps {
   title?: string
@@ -37,8 +37,8 @@ export function StatusBar({ title, subtitle, onBack, action }: StatusBarProps) {
           className="h-7 w-auto object-contain flex-shrink-0"
           onError={(e) => {
             const el = e.currentTarget as HTMLImageElement
-            if (el.src !== LOGO_FALLBACK) {
-              el.src = LOGO_FALLBACK
+            if (el.getAttribute('src') !== LOGO_FB) {
+              el.setAttribute('src', LOGO_FB)
             } else {
               el.outerHTML = '<span class="text-xl">🧾</span>'
             }
