@@ -7,15 +7,12 @@ import { useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useGlobalFetching } from '../../hooks/useSheets'
 import { LOADING_MESSAGES } from '../../api/config'
-
-const B = import.meta.env.BASE_URL
-const SRCS = [`${B}logo.png`, `${B}icon-192.png`]
+import { LOGO } from '../../assets/logo'
 
 export function LoadingOverlay() {
   const isFetching = useGlobalFetching()
   const [visible,  setVisible ] = useState(false)
   const [msgIndex, setMsgIndex] = useState(0)
-  const [srcIdx,   setSrcIdx  ] = useState(0)
 
   // Delay 150ms para evitar flicker en cargas muy rápidas
   useEffect(() => {
@@ -55,17 +52,7 @@ export function LoadingOverlay() {
             animate={{ scale: 1,   opacity: 1 }}
             transition={{ type: 'spring', damping: 18, stiffness: 200 }}
           >
-            {srcIdx < SRCS.length ? (
-              <img
-                key={SRCS[srcIdx]}
-                src={SRCS[srcIdx]}
-                alt="Logo"
-                className="h-20 w-auto object-contain drop-shadow-xl"
-                onError={() => setSrcIdx((i) => i + 1)}
-              />
-            ) : (
-              <span className="text-6xl">🧾</span>
-            )}
+            <img src={LOGO} alt="Logo" className="h-20 w-auto object-contain drop-shadow-xl" />
           </motion.div>
 
           {/* Puntos de carga animados */}

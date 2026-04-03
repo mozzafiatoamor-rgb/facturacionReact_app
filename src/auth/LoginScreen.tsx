@@ -9,9 +9,7 @@ import { useAuth } from './AuthContext'
 import { useUsuarios } from '../hooks/useSheets'
 import type { Usuario } from '../api/types'
 import { useToast } from '../hooks/useToast'
-
-const B = import.meta.env.BASE_URL
-const SRCS = [`${B}logo.png`, `${B}icon-192.png`]
+import { LOGO } from '../assets/logo'
 const ROL_LABEL: Record<string, string> = {
   mesero:   '🍽️ Mesero',
   admin:    '⚙️ Admin',
@@ -74,7 +72,7 @@ export function LoginScreen() {
     <div className="h-full bg-bg flex flex-col">
       {/* Header */}
       <div className="bg-surface border-b border-white/10 px-4 py-3 flex items-center gap-2.5 sticky top-0 z-10">
-        <LoginLogo />
+        <img src={LOGO} alt="Logo" className="h-8 w-auto object-contain flex-shrink-0" />
         <span className="flex-1 text-base font-bold text-white">
           Mozzafiato Facturas
         </span>
@@ -255,20 +253,6 @@ function ErrorState({ onRetry }: { onRetry: () => void }) {
         ↺ Reintentar
       </button>
     </div>
-  )
-}
-
-function LoginLogo() {
-  const [idx, setIdx] = useState(0)
-  if (idx >= SRCS.length) return <span className="text-2xl flex-shrink-0">🧾</span>
-  return (
-    <img
-      key={SRCS[idx]}
-      src={SRCS[idx]}
-      alt="Logo"
-      className="h-8 w-auto object-contain flex-shrink-0"
-      onError={() => setIdx((i) => i + 1)}
-    />
   )
 }
 
