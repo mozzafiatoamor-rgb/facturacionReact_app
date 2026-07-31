@@ -15,28 +15,46 @@ export interface LlevarData {
 
 const EXPIRY_MS = 24 * 60 * 60 * 1000 // 24 horas
 
+// Claves compactas para reducir tamaño del URL
+interface CompactPayload {
+  m: string  // mesa
+  $: string  // monto
+  t: string  // tipoPago
+  w: string  // mesero
+  f: string  // fecha
+  h: string  // hora
+  e: number  // exp
+}
+
 /**
- * Codifica los datos del pedido en un string base64 URL-safe.
+ * Codifica los datos del pedido en un string base64 URL-safe (claves cortas).
  */
 export function encodeLlevar(data: Omit<LlevarData, 'exp'>): string {
-  const payload: LlevarData = { ...data, exp: Date.now() + EXPIRY_MS }
+  const payload: CompactPayload = {
+    m: data.mesa, $: data.monto, t: data.tipoPago,
+    w: data.mesero, f: data.fecha, h: data.hora,
+    e: Date.now() + EXPIRY_MS,
+  }
   const json = JSON.stringify(payload)
-  // btoa + URL-safe: reemplaza +/= por caracteres seguros
   return btoa(json).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 }
 
 /**
  * Decodifica un string base64 URL-safe a LlevarData.
- * Retorna null si el formato es inválido.
+ * Soporta tanto claves compactas (m/$) como legacy (mesa/monto).
  */
 export function decodeLlevar(encoded: string): LlevarData | null {
   try {
-    // Restaurar base64 estándar
     let b64 = encoded.replace(/-/g, '+').replace(/_/g, '/')
     while (b64.length % 4) b64 += '='
     const json = atob(b64)
-    const data = JSON.parse(json) as LlevarData
-    // Validar campos mínimos
+    const raw = JSON.parse(json)
+
+    // Soportar ambos formatos
+    const data: LlevarData = raw.m != null
+      ? { mesa: raw.m, monto: raw.$, tipoPago: raw.t, mesero: raw.w, fecha: raw.f, hora: raw.h, exp: raw.e }
+      : raw as LlevarData
+
     if (!data.mesa || !data.monto || !data.exp) return null
     return data
   } catch {
@@ -69,10 +87,10 @@ export function buildWhatsAppUrl(phone: string, llevarUrl: string, monto: string
   // Agregar código de país si no lo tiene (México = 52)
   const full = clean.length === 10 ? `52${clean}` : clean
   const msg = encodeURIComponent(
-    `🧾 *Mozzafiato Facturas*\n\n` +
-    `Hola, aquí tienes el link para solicitar tu factura por $${monto}:\n\n` +
+    `🧾 *Mozzafiato*\n\n` +
+    `Genera tu factura por *$${monto}* aquí:\n` +
     `${llevarUrl}\n\n` +
-    `⏰ Este link es válido por 24 horas.`
+    `_Válido por 24 hrs._`
   )
   return `https://wa.me/${full}?text=${msg}`
 }
