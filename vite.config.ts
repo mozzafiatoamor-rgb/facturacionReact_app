@@ -2,7 +2,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
-const BASE = process.env.VITE_BASE_URL ?? '/'
+const BASE = process.env.VITE_BASE_URL ?? '/facturacionReact_app/'
 
 export default defineConfig({
   base: BASE,
@@ -62,6 +62,8 @@ export default defineConfig({
           },
         ],
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        navigateFallback: 'index.html',
+        navigateFallbackDenylist: [/^\/api/],
         skipWaiting: true,
         clientsClaim: true,
       },
