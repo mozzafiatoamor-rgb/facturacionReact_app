@@ -5,7 +5,7 @@
 // 3 tipos: success | error | info — auto-dismiss 2.5 s
 // ============================================================
 
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import type { ToastMessage, ToastType } from '../api/types'
 
 // ── Singleton store (fuera de React) ────────────────────────
