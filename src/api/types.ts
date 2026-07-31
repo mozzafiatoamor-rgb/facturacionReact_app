@@ -118,8 +118,6 @@ export interface EmailData {
   email: string
   status: string
   mesero: string
-  codigoPostal?: string
-  notas?: string
 }
 
 // ── Tipos de toast
@@ -132,7 +130,7 @@ export interface ToastMessage {
 }
 
 // ── Paso del flujo de solicitud
-export type FlowStep = 'setup' | 'login' | 'home' | 'mesero' | 'cliente' | 'confirm' | 'success' | 'admin'
+export type FlowStep = 'setup' | 'login' | 'home' | 'mesero' | 'cliente' | 'confirm' | 'success' | 'admin' | 'llevar'
 
 // ── Datos del paso mesero (orden en curso)
 export interface CurrentOrder {

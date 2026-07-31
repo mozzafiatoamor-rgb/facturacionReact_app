@@ -1,6 +1,7 @@
 // ============================================================
 // APP.TSX — Orquestador de pantallas con animaciones de transición
 // Router manual basado en FlowStep + gestión de estado de flujo
+// Detecta ?llevar= en URL para mostrar formulario público
 // ============================================================
 
 import { useState, useCallback, useEffect } from 'react'
@@ -16,6 +17,7 @@ import { ClientePage  } from './pages/ClientePage'
 import { ConfirmPage  } from './pages/ConfirmPage'
 import { SuccessPage  } from './pages/SuccessPage'
 import { AdminPage    } from './pages/AdminPage'
+import { LlevarPage   } from './pages/LlevarPage'
 import { LoadingOverlay } from './components/shared/LoadingOverlay'
 import { ToastContainer } from './components/shared/Toast'
 import { useToast } from './hooks/useToast'
@@ -23,8 +25,11 @@ import { useOfflineSync } from './hooks/useOfflineSync'
 import { useNuevaSolicitud } from './hooks/useSheets'
 import { fetchSolicitudes, fetchClientes, fetchUsuarios, fetchBitacora } from './api/sheets'
 import { QUERY_KEYS, STALE_TIMES } from './api/config'
+import { getLlevarParam, decodeLlevar, isExpired, clearLlevarParam } from './utils/llevar'
+import { LOGO } from './assets/logo'
 
 import type { FlowStep, CurrentOrder } from './api/types'
+import type { LlevarData } from './utils/llevar'
 import type { ClienteFormData } from './components/forms/ClienteForm'
 
 // ── Transición de pantallas ───────────────────────────────
@@ -45,15 +50,30 @@ export default function App() {
   const [cliente, setCliente] = useState<ClienteFormData | null>(null)
   const [isNew,   setIsNew  ] = useState(false)
 
+  // ── Detectar link "para llevar" en URL ────────────────────
+  const [llevarData, setLlevarData] = useState<LlevarData | null>(null)
+  const [llevarExpired, setLlevarExpired] = useState(false)
+
+  useEffect(() => {
+    const param = getLlevarParam()
+    if (!param) return
+    const decoded = decodeLlevar(param)
+    if (!decoded) return
+    if (isExpired(decoded)) {
+      setLlevarExpired(true)
+      clearLlevarParam()
+    } else {
+      setLlevarData(decoded)
+      clearLlevarParam()
+    }
+  }, [])
+
   // Sync offline en background
   useOfflineSync()
 
   // ── Prefetch de todos los datos en cuanto el usuario hace login ──
-  // Esto arranca la carga ANTES de que el usuario navegue a cualquier página,
-  // eliminando el tiempo muerto entre login y primer uso real.
   useEffect(() => {
     if (!user) return
-    // prefetchQuery respeta el staleTime: no re-fetcha si los datos son frescos
     queryClient.prefetchQuery({ queryKey: QUERY_KEYS.solicitudes, queryFn: fetchSolicitudes, staleTime: STALE_TIMES.solicitudes })
     queryClient.prefetchQuery({ queryKey: QUERY_KEYS.clientes,    queryFn: fetchClientes,    staleTime: STALE_TIMES.clientes    })
     queryClient.prefetchQuery({ queryKey: QUERY_KEYS.usuarios,    queryFn: fetchUsuarios,    staleTime: STALE_TIMES.usuarios    })
@@ -80,11 +100,7 @@ export default function App() {
 
   function handleConfirm() {
     if (!order || !cliente) return
-
-    // Cierre optimista: navegar inmediatamente
     setStep('success')
-
-    // POST en background (IIFE async)
     ;(async () => {
       try {
         await nuevaSolicitudMut.mutateAsync({
@@ -101,7 +117,7 @@ export default function App() {
           codigoPostal:  cliente.codigoPostal,
           isNewCliente:  isNew,
         })
-      } catch (e) {
+      } catch {
         toast('⚠️ Se guardó offline — se enviará al recuperar conexión', 'info')
       }
     })()
@@ -114,6 +130,33 @@ export default function App() {
     setStep('mesero')
   }
 
+  // ── Render: link "para llevar" (formulario público, sin login) ──
+  if (llevarData) {
+    return (
+      <div className="font-sans antialiased text-white h-dvh overflow-hidden">
+        <LlevarPage data={llevarData} />
+      </div>
+    )
+  }
+
+  // ── Render: link expirado ──────────────────────────────────
+  if (llevarExpired) {
+    return (
+      <div className="font-sans antialiased text-white h-dvh overflow-hidden bg-bg flex flex-col items-center justify-center px-6 text-center">
+        <img src={LOGO} alt="Logo" className="h-20 w-auto object-contain mb-6" />
+        <span className="text-5xl mb-4">⏰</span>
+        <h1 className="text-xl font-bold text-white mb-2">Link expirado</h1>
+        <p className="text-muted text-sm max-w-[280px]">
+          Este link de facturación ya no es válido. Los links expiran después de 24 horas.
+        </p>
+        <p className="text-muted text-xs mt-4">
+          Pide a tu mesero que genere un nuevo link.
+        </p>
+      </div>
+    )
+  }
+
+  // ── Render: flujo normal (con auth) ────────────────────────
   return (
     <div className="font-sans antialiased text-white h-dvh overflow-hidden">
         {/* Transiciones de pantalla */}

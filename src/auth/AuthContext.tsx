@@ -61,7 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (sess?.user) {
       setUser(sess.user)
       // Steps que requieren estado en memoria (order/cliente) → redirigir a destino seguro
-      const TRANSIENT: FlowStep[] = ['success', 'confirm', 'cliente', 'mesero']
+      const TRANSIENT: FlowStep[] = ['success', 'confirm', 'cliente', 'mesero', 'llevar']
       const safe: FlowStep = TRANSIENT.includes(sess.step) ? 'home' : (sess.step ?? 'home')
       setStepState(safe)
     } else {

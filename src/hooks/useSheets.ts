@@ -10,7 +10,7 @@ import {
   useIsFetching,
 } from '@tanstack/react-query'
 import { fetchClientes, fetchSolicitudes, fetchUsuarios, fetchBitacora } from '../api/sheets'
-import { updateStatus, updateCliente, sendConfirmation, batchAppend } from '../api/appscript'
+import { updateStatus, updateCliente, sendConfirmation as apiSendConfirmation, batchAppend } from '../api/appscript'
 import { enqueueOp } from '../store/db'
 import { QUERY_KEYS, STALE_TIMES } from '../api/config'
 import { now } from '../utils/dates'
@@ -170,6 +170,8 @@ export function useNuevaSolicitud() {
       // Intentar enviar; si falla, encolar para offline
       try {
         await batchAppend(items, emailData)
+        // Fallback: enviar email por separado (por si batchAppend no lo procesó)
+        try { await apiSendConfirmation(solId, emailData) } catch { /* silencioso */ }
       } catch {
         await enqueueOp({
           type:      'batchAppend',
@@ -261,7 +263,7 @@ export function useUpdateCliente() {
 // ── Mutación: enviar confirmación por email ────────────────
 export function useSendConfirmation() {
   return useMutation({
-    mutationFn: ({ solId }: { solId: string }) => sendConfirmation(solId),
+    mutationFn: ({ solId }: { solId: string }) => apiSendConfirmation(solId),
     onError: async (_err, vars) => {
       await enqueueOp({
         type: 'sendConfirmation', solId: vars.solId,

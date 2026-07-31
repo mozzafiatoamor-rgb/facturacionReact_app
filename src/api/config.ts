@@ -90,14 +90,18 @@ export const TIPOS_PAGO: TipoPago[] = [
   { clave: 'Transferencia',    icon: '📲', label: 'Transferencia' },
 ]
 
-// ── Mensajes motivacionales del LoadingOverlay
+// ── Frases motivacionales del LoadingOverlay
 export const LOADING_MESSAGES = [
-  'Conectando con el servidor...',
-  'Cargando información...',
-  'Casi listo...',
-  'Sincronizando datos...',
-  'Un momento más...',
-  'Preparando todo para ti...',
+  '¡Buen servicio hace la diferencia! 🌟',
+  'Cada cliente merece la mejor experiencia ✨',
+  'Tu equipo es el corazón del restaurante 💛',
+  'Cargando datos con mucho sabor... 🍕',
+  '¡Hoy va a ser un gran día! 🚀',
+  'Conectando con tu base de datos... ⚡',
+  'La excelencia está en los detalles 🎯',
+  '¡Ya casi estamos! Gracias por tu paciencia 🙏',
+  'Mozzafiato — donde cada factura importa 🧾',
+  'Sincronizando tu mundo de negocios... 🌐',
 ]
 
 // ── Constantes de localStorage

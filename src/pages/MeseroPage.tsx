@@ -1,13 +1,16 @@
 // ============================================================
 // MESEROPAGA.TSX — Paso 1: Mesa, monto, tipo de pago, notas
 // Step indicator animado · inputs numéricos con inputMode
+// Botón "Enviar link para llevar" → genera link WhatsApp
 // ============================================================
 
 import { useState } from 'react'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { StatusBar } from '../components/layout/StatusBar'
 import { useToast } from '../hooks/useToast'
 import { TIPOS_PAGO } from '../api/config'
+import { buildLlevarUrl, buildWhatsAppUrl } from '../utils/llevar'
+import { now } from '../utils/dates'
 import type { CurrentOrder } from '../api/types'
 
 const STEPS = ['Mesa', 'Cliente', 'Confirmar', 'Listo']
@@ -26,12 +29,47 @@ export function MeseroPage({ initial, onNext, onBack, userName }: MeseroPageProp
   const [tipoPago, setTipoPago] = useState(initial?.tipoPago ?? '')
   const [notas,    setNotas   ] = useState(initial?.notas    ?? '')
 
-  function handleContinuar() {
-    if (!mesa.trim()) { toast('Ingresa el número de mesa', 'error');   return }
-    if (!monto || parseFloat(monto) <= 0) { toast('Monto inválido', 'error'); return }
-    if (!tipoPago) { toast('Selecciona el tipo de pago', 'error'); return }
+  // Estado para el flujo "para llevar"
+  const [showLlevar, setShowLlevar] = useState(false)
+  const [whatsapp,   setWhatsapp  ] = useState('')
 
+  function validate(): boolean {
+    if (!mesa.trim()) { toast('Ingresa el número de mesa', 'error');   return false }
+    if (!monto || parseFloat(monto) <= 0) { toast('Monto inválido', 'error'); return false }
+    if (!tipoPago) { toast('Selecciona el tipo de pago', 'error'); return false }
+    return true
+  }
+
+  function handleContinuar() {
+    if (!validate()) return
     onNext({ mesa: mesa.trim(), monto, tipoPago, notas: notas.trim(), mesero: userName })
+  }
+
+  function handleLlevar() {
+    if (!validate()) return
+    setShowLlevar(true)
+  }
+
+  function handleEnviarWhatsApp() {
+    const num = whatsapp.replace(/\D/g, '')
+    if (num.length < 10) {
+      toast('Ingresa un número válido de 10 dígitos', 'error')
+      return
+    }
+    const { date, time } = now()
+    const url = buildLlevarUrl({
+      mesa: mesa.trim(),
+      monto,
+      tipoPago,
+      mesero: userName,
+      fecha: date,
+      hora: time,
+    })
+    const waUrl = buildWhatsAppUrl(num, url, monto)
+    window.open(waUrl, '_blank')
+    toast('Link enviado por WhatsApp')
+    // Regresar al home después de enviar
+    setTimeout(() => onBack(), 1500)
   }
 
   return (
@@ -122,10 +160,70 @@ export function MeseroPage({ initial, onNext, onBack, userName }: MeseroPageProp
             />
           </div>
 
-          <button onClick={handleContinuar} className="btn btn-primary w-full text-base">
-            Pasar a Cliente →
-          </button>
+          {/* Botones de acción */}
+          <div className="flex flex-col gap-3">
+            <button onClick={handleContinuar} className="btn btn-primary w-full text-base">
+              Pasar a Cliente →
+            </button>
+            <button
+              onClick={handleLlevar}
+              className="btn w-full bg-surface2 border border-white/10 text-white text-sm"
+            >
+              📲 Enviar link al cliente (para llevar)
+            </button>
+          </div>
         </motion.div>
+
+        {/* Panel WhatsApp — aparece al tocar "Enviar link" */}
+        <AnimatePresence>
+          {showLlevar && (
+            <motion.div
+              key="llevar-panel"
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 16 }}
+              transition={{ duration: 0.2 }}
+              className="bg-surface border border-accent/30 rounded-xl p-5 mt-4"
+            >
+              <div className="text-center mb-3">
+                <span className="text-3xl">📲</span>
+                <p className="text-sm font-bold text-white mt-1">Enviar link por WhatsApp</p>
+                <p className="text-xs text-muted mt-1">
+                  El cliente recibirá un formulario con el monto de ${monto} prellenado
+                </p>
+              </div>
+
+              <label className="block text-xs text-muted font-medium mb-1.5">
+                Número de WhatsApp del cliente
+              </label>
+              <input
+                value={whatsapp}
+                onChange={(e) => setWhatsapp(e.target.value)}
+                type="tel"
+                inputMode="tel"
+                placeholder="81 1234 5678"
+                className="input mb-4"
+                autoComplete="tel"
+              />
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowLlevar(false)}
+                  className="btn flex-1 bg-surface2 border border-white/10 text-muted text-sm"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleEnviarWhatsApp}
+                  className="btn flex-1 text-sm font-bold"
+                  style={{ background: '#25D366', color: '#fff' }}
+                >
+                  Enviar por WhatsApp
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   )
