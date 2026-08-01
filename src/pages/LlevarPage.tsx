@@ -1,21 +1,22 @@
 // ============================================================
 // LLEVARPAGE.TSX — Formulario público "para llevar"
 // El cliente accede via link de WhatsApp (sin login)
-// Muestra datos del pedido en solo lectura + formulario fiscal
+// Si ya solicitó factura → muestra estatus
+// Si no → muestra formulario fiscal
 // ============================================================
 
 import { useState, useMemo, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { LOGO } from '../assets/logo'
 import { REGIMENES, USOS_CFDI, QUERY_KEYS, STALE_TIMES, SHEET_NAMES } from '../api/config'
-import { fetchClientes } from '../api/sheets'
+import { fetchClientes, fetchSolicitudes } from '../api/sheets'
 import { batchAppend, sendConfirmation } from '../api/appscript'
 import { useQueryClient, useQuery } from '@tanstack/react-query'
 import { generateId } from '../utils/ids'
 import { now, fmt$ } from '../utils/dates'
 import { enqueueOp } from '../store/db'
 import type { LlevarData } from '../utils/llevar'
-import type { Cliente, BatchItem, EmailData } from '../api/types'
+import type { Cliente, Solicitud, BatchItem, EmailData } from '../api/types'
 
 // Helper: dado un código, devuelve "código - descripción"
 function fullRegimen(clave: string): string {
@@ -40,6 +41,12 @@ const SUCCESS_MESSAGES = [
   '¡Así de fácil! Disfruta mientras preparamos tu factura.',
 ]
 
+const STATUS_CONFIG: Record<string, { color: string; bg: string; label: string }> = {
+  Pendiente:  { color: 'text-yellow-400', bg: 'bg-yellow-400/10 border-yellow-400/30', label: '⏳ Pendiente' },
+  Procesada:  { color: 'text-emerald-400', bg: 'bg-emerald-400/10 border-emerald-400/30', label: '✅ Procesada' },
+  Cancelada:  { color: 'text-red-400', bg: 'bg-red-400/10 border-red-400/30', label: '❌ Cancelada' },
+}
+
 interface LlevarPageProps {
   data: LlevarData
 }
@@ -53,6 +60,23 @@ export function LlevarPage({ data }: LlevarPageProps) {
     queryFn: fetchClientes,
     staleTime: STALE_TIMES.clientes,
   })
+
+  // Cargar solicitudes para detectar si ya existe una
+  const { data: solicitudes = [], isLoading: loadingSols } = useQuery({
+    queryKey: QUERY_KEYS.solicitudes,
+    queryFn: fetchSolicitudes,
+    staleTime: 10_000, // 10s — queremos dato fresco
+  })
+
+  // Buscar solicitud existente que coincida con este link
+  const existing: Solicitud | null = useMemo(() => {
+    return solicitudes.find((s) =>
+      s.mesa === data.mesa &&
+      s.monto === data.monto &&
+      s.fecha === data.fecha &&
+      s.mesero === data.mesero
+    ) ?? null
+  }, [solicitudes, data])
 
   // Estado del formulario
   const [rfcInput,  setRfcInput ] = useState('')
@@ -172,7 +196,6 @@ export function LlevarPage({ data }: LlevarPageProps) {
 
       try {
         await batchAppend(items, emailData)
-        // Fallback: enviar email por separado (por si batchAppend no lo procesó)
         try { await sendConfirmation(solId, emailData) } catch { /* silencioso */ }
       } catch {
         await enqueueOp({
@@ -190,7 +213,82 @@ export function LlevarPage({ data }: LlevarPageProps) {
     }
   }
 
-  // ── Pantalla de éxito ──────────────────────────────────────
+  // ── Loading mientras verifica si ya existe solicitud ────────
+  if (loadingSols) {
+    return (
+      <div className="h-dvh bg-bg flex flex-col items-center justify-center px-6">
+        <img src={LOGO} alt="Logo" className="h-16 w-auto object-contain mb-4" />
+        <div className="w-6 h-6 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+        <p className="text-muted text-sm mt-3">Cargando...</p>
+      </div>
+    )
+  }
+
+  // ── Pantalla de ESTATUS (ya solicitó factura) ──────────────
+  if (existing && !done) {
+    const cfg = STATUS_CONFIG[existing.status] ?? STATUS_CONFIG.Pendiente
+    return (
+      <div className="h-dvh bg-bg flex flex-col overflow-hidden">
+        <header className="bg-surface border-b border-white/10 px-4 py-3 flex items-center gap-3">
+          <img src={LOGO} alt="Logo" className="h-7 w-auto object-contain flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-white truncate">Estatus de Factura</p>
+            <p className="text-xs text-muted truncate">Mozzafiato</p>
+          </div>
+        </header>
+
+        <div className="flex-1 px-4 pt-6 pb-8 max-w-sm mx-auto w-full overflow-y-auto">
+          {/* Saludo */}
+          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+            className="text-center mb-5">
+            <p className="text-lg font-bold text-white">¡Hola de nuevo! 👋</p>
+            <p className="text-sm text-muted mt-1">Tu solicitud de factura ya fue registrada. Aquí puedes consultar su estatus.</p>
+          </motion.div>
+
+          {/* Badge de estatus */}
+          <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.05 }}
+            className={`border rounded-xl p-5 text-center mb-6 ${cfg.bg}`}>
+            <p className={`text-3xl mb-2`}>{cfg.label.split(' ')[0]}</p>
+            <p className={`text-xl font-bold ${cfg.color}`}>{cfg.label.split(' ').slice(1).join(' ')}</p>
+            <p className="text-muted text-xs mt-2">ID: {existing.id}</p>
+          </motion.div>
+
+          {/* Datos de la solicitud */}
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
+            className="bg-surface border border-white/10 rounded-xl p-4 space-y-3">
+            <p className="text-xs text-accent font-semibold uppercase tracking-wider">Detalles de la solicitud</p>
+
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <Detail label="Mesa" value={existing.mesa} />
+              <Detail label="Monto" value={fmt$(existing.monto)} />
+              <Detail label="Tipo de pago" value={existing.tipoPago} />
+              <Detail label="Fecha" value={existing.fecha} />
+              <Detail label="Hora" value={existing.hora} />
+              <Detail label="Mesero" value={existing.mesero} />
+            </div>
+
+            <div className="border-t border-white/10 pt-3 space-y-2">
+              <Detail label="RFC" value={existing.rfc} />
+              <Detail label="Razón Social" value={existing.razonSocial} />
+              <Detail label="Email" value={existing.email} />
+            </div>
+          </motion.div>
+
+          {/* Mensaje informativo */}
+          <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}
+            className="text-center text-muted text-xs mt-5">
+            {existing.status === 'Pendiente'
+              ? 'Tu factura está siendo procesada. Recibirás un correo cuando esté lista.'
+              : existing.status === 'Procesada'
+              ? 'Tu factura ya fue emitida. Revisa tu correo electrónico.'
+              : 'Esta solicitud fue cancelada. Contacta al restaurante para más información.'}
+          </motion.p>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Pantalla de éxito (acaba de enviar) ────────────────────
   if (done) {
     return (
       <div className="h-dvh bg-bg flex flex-col items-center justify-center px-6 text-center overflow-hidden relative">
@@ -237,8 +335,17 @@ export function LlevarPage({ data }: LlevarPageProps) {
       </header>
 
       <div className="flex-1 px-4 pt-4 pb-8 max-w-sm mx-auto w-full overflow-y-auto">
+        {/* Saludo e instrucciones */}
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+          className="text-center mb-4">
+          <p className="text-lg font-bold text-white">¡Hola! 👋 Gracias por tu visita</p>
+          <p className="text-sm text-muted mt-1 leading-relaxed">
+            Solicita tu factura en 3 sencillos pasos: busca tu RFC, confirma tus datos fiscales y listo.
+          </p>
+        </motion.div>
+
         {/* Datos del pedido (solo lectura) */}
-        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
           className="bg-accent/10 border border-accent/30 rounded-xl p-4 mb-5">
           <p className="text-xs text-accent font-semibold uppercase tracking-wider mb-2">Datos del pedido</p>
           <div className="grid grid-cols-2 gap-2 text-sm">
@@ -364,13 +471,22 @@ export function LlevarPage({ data }: LlevarPageProps) {
   )
 }
 
-// ── Sub-componente Field ───────────────────────────────────
+// ── Sub-componentes ──────────────────────────────────────────
 function Field({ label, error, children }: { label: string; error?: string; children: React.ReactNode }) {
   return (
     <div>
       <label className="block text-xs text-muted font-medium mb-1.5">{label}</label>
       {children}
       {error && <p className="text-xs text-danger mt-1">{error}</p>}
+    </div>
+  )
+}
+
+function Detail({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p className="text-xs text-muted">{label}</p>
+      <p className="text-sm text-white font-medium">{value || '—'}</p>
     </div>
   )
 }

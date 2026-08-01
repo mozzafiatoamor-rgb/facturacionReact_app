@@ -13,7 +13,7 @@ export interface LlevarData {
   exp: number // timestamp de expiración
 }
 
-const EXPIRY_MS = 24 * 60 * 60 * 1000 // 24 horas
+const EXPIRY_MS = 5 * 24 * 60 * 60 * 1000 // 5 días
 
 // Claves compactas para reducir tamaño del URL
 interface CompactPayload {
@@ -87,10 +87,14 @@ export function buildWhatsAppUrl(phone: string, llevarUrl: string, monto: string
   // Agregar código de país si no lo tiene (México = 52)
   const full = clean.length === 10 ? `52${clean}` : clean
   const msg = encodeURIComponent(
-    `🧾 *Mozzafiato*\n\n` +
-    `Genera tu factura por *$${monto}* aquí:\n` +
+    `¡Hola! 👋 Gracias por tu visita a *Mozzafiato* 🍕\n\n` +
+    `Para solicitar tu factura por *$${monto}*, sigue estos pasos:\n\n` +
+    `1️⃣ Abre el siguiente link\n` +
+    `2️⃣ Busca tu RFC o regístralo como nuevo\n` +
+    `3️⃣ Confirma tus datos fiscales y envía\n\n` +
+    `🧾 Genera tu factura aquí:\n` +
     `${llevarUrl}\n\n` +
-    `_Válido por 24 hrs._`
+    `_Este link es válido por 5 días. Puedes volver a abrirlo para consultar el estatus de tu factura._`
   )
   return `https://wa.me/${full}?text=${msg}`
 }

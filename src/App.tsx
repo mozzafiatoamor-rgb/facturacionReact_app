@@ -147,7 +147,7 @@ export default function App() {
         <span className="text-5xl mb-4">⏰</span>
         <h1 className="text-xl font-bold text-white mb-2">Link expirado</h1>
         <p className="text-muted text-sm max-w-[280px]">
-          Este link de facturación ya no es válido. Los links expiran después de 24 horas.
+          Este link de facturación ya no es válido. Los links expiran después de 5 días.
         </p>
         <p className="text-muted text-xs mt-4">
           Pide a tu mesero que genere un nuevo link.
