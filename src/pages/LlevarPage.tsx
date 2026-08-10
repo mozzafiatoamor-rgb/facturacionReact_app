@@ -3,9 +3,10 @@
 // El cliente accede via link de WhatsApp (sin login)
 // Si ya solicitó factura → muestra estatus
 // Si no → muestra formulario fiscal
+// Refuerzo: 3 reintentos + verificación + WhatsApp a Mozzafiato
 // ============================================================
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { LOGO } from '../assets/logo'
 import { REGIMENES, USOS_CFDI, QUERY_KEYS, STALE_TIMES, SHEET_NAMES } from '../api/config'
@@ -14,11 +15,11 @@ import { batchAppend, sendConfirmation } from '../api/appscript'
 import { useQueryClient, useQuery } from '@tanstack/react-query'
 import { generateId } from '../utils/ids'
 import { now, fmt$ } from '../utils/dates'
-import { enqueueOp } from '../store/db'
 import type { LlevarData } from '../utils/llevar'
 import type { Cliente, Solicitud, BatchItem, EmailData } from '../api/types'
 
-// Helper: dado un código, devuelve "código - descripción"
+const MOZZAFIATO_WA = '529984088897'
+
 function fullRegimen(clave: string): string {
   const r = REGIMENES.find((x) => x.clave === clave || clave.startsWith(x.clave))
   return r ? `${r.clave} - ${r.desc}` : clave
@@ -47,6 +48,38 @@ const STATUS_CONFIG: Record<string, { color: string; bg: string; label: string }
   Cancelada:  { color: 'text-red-400', bg: 'bg-red-400/10 border-red-400/30', label: '❌ Cancelada' },
 }
 
+// ── Reintento con delay exponencial ──────────────────────────
+async function withRetry<T>(fn: () => Promise<T>, maxRetries = 3): Promise<T> {
+  let lastErr: unknown
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await fn()
+    } catch (e) {
+      lastErr = e
+      if (i < maxRetries - 1) {
+        await new Promise((r) => setTimeout(r, 1000 * (i + 1)))
+      }
+    }
+  }
+  throw lastErr
+}
+
+// ── Generar link de WhatsApp a Mozzafiato ────────────────────
+function buildNotifyWaUrl(solId: string, rfc: string, monto: string, mesa: string, email: string): string {
+  const msg = encodeURIComponent(
+    `🧾 *Solicitud de Factura*\n\n` +
+    `Hola, acabo de solicitar mi factura desde el link para llevar.\n\n` +
+    `📋 *Datos:*\n` +
+    `• ID: ${solId}\n` +
+    `• RFC: ${rfc}\n` +
+    `• Monto: $${monto}\n` +
+    `• Mesa: ${mesa}\n` +
+    `• Email: ${email}\n\n` +
+    `¿Podrían confirmar que la recibieron? Gracias.`
+  )
+  return `https://wa.me/${MOZZAFIATO_WA}?text=${msg}`
+}
+
 interface LlevarPageProps {
   data: LlevarData
 }
@@ -54,21 +87,18 @@ interface LlevarPageProps {
 export function LlevarPage({ data }: LlevarPageProps) {
   const queryClient = useQueryClient()
 
-  // Cargar clientes para autocompletado
   const { data: clientes = [] } = useQuery({
     queryKey: QUERY_KEYS.clientes,
     queryFn: fetchClientes,
     staleTime: STALE_TIMES.clientes,
   })
 
-  // Cargar solicitudes para detectar si ya existe una
   const { data: solicitudes = [], isLoading: loadingSols } = useQuery({
     queryKey: QUERY_KEYS.solicitudes,
     queryFn: fetchSolicitudes,
-    staleTime: 10_000, // 10s — queremos dato fresco
+    staleTime: 10_000,
   })
 
-  // Buscar solicitud existente que coincida con este link
   const existing: Solicitud | null = useMemo(() => {
     return solicitudes.find((s) =>
       s.mesa === data.mesa &&
@@ -88,17 +118,18 @@ export function LlevarPage({ data }: LlevarPageProps) {
   })
   const [errors,    setErrors   ] = useState<Record<string, string>>({})
   const [sending,   setSending  ] = useState(false)
+  const [sendError, setSendError] = useState('')
   const [done,      setDone     ] = useState(false)
+  const [savedSolId, setSavedSolId] = useState('')
   const [msgIdx,    setMsgIdx   ] = useState(() => Math.floor(Math.random() * SUCCESS_MESSAGES.length))
+  const retryRef = useRef<{ items: BatchItem[]; emailData: EmailData; solId: string } | null>(null)
 
-  // Rotar mensajes en pantalla de éxito
   useEffect(() => {
     if (!done) return
     const t = setInterval(() => setMsgIdx(Math.floor(Math.random() * SUCCESS_MESSAGES.length)), 3000)
     return () => clearInterval(t)
   }, [done])
 
-  // Sugerencias RFC
   const suggestions = useMemo(() => {
     const q = rfcInput.trim().toUpperCase()
     if (q.length < 2) return []
@@ -147,73 +178,105 @@ export function LlevarPage({ data }: LlevarPageProps) {
     ev.preventDefault()
     if (!validate()) return
     setSending(true)
+    setSendError('')
 
-    try {
-      const { date, time } = now()
-      const solId = generateId('SOL')
-      const regimenStr = fullRegimen(form.regimen)
-      const cfdiStr = fullUsoCfdi(form.usoCfdi)
-      const rfc = form.rfc.toUpperCase()
+    const { date, time } = now()
+    const solId = generateId('SOL')
+    const regimenStr = fullRegimen(form.regimen)
+    const cfdiStr = fullUsoCfdi(form.usoCfdi)
+    const rfc = form.rfc.toUpperCase()
 
-      const items: BatchItem[] = []
+    const items: BatchItem[] = []
 
-      // Solicitud
+    items.push({
+      sheet: SHEET_NAMES.solicitudes,
+      rows: [[
+        solId, date, time, data.mesa, data.monto, data.tipoPago,
+        rfc, form.razonSocial, regimenStr, cfdiStr,
+        form.email, 'Pendiente', data.mesero, 'Solicitud via link para llevar',
+        form.codigoPostal,
+      ]],
+    })
+
+    if (isNew) {
       items.push({
-        sheet: SHEET_NAMES.solicitudes,
+        sheet: SHEET_NAMES.clientes,
         rows: [[
-          solId, date, time, data.mesa, data.monto, data.tipoPago,
-          rfc, form.razonSocial, regimenStr, cfdiStr,
-          form.email, 'Pendiente', data.mesero, 'Solicitud via link para llevar',
-          form.codigoPostal,
+          generateId('CLI'), rfc, form.razonSocial, regimenStr, cfdiStr,
+          form.email, date, form.telefono, form.codigoPostal,
         ]],
       })
+    }
 
-      // Cliente nuevo
-      if (isNew) {
-        items.push({
-          sheet: SHEET_NAMES.clientes,
-          rows: [[
-            generateId('CLI'), rfc, form.razonSocial, regimenStr, cfdiStr,
-            form.email, date, form.telefono, form.codigoPostal,
-          ]],
-        })
-      }
+    items.push({
+      sheet: SHEET_NAMES.bitacora,
+      rows: [[date, time, data.mesero, 'Solicitud (llevar)', `${rfc} Mesa ${data.mesa}`, 'solicitud']],
+    })
 
-      // Bitácora
-      items.push({
-        sheet: SHEET_NAMES.bitacora,
-        rows: [[date, time, data.mesero, 'Solicitud (llevar)', `${rfc} Mesa ${data.mesa}`, 'solicitud']],
-      })
+    const emailData: EmailData = {
+      id: solId, fecha: date, hora: time, mesa: data.mesa,
+      monto: data.monto, tipoPago: data.tipoPago, rfc,
+      razonSocial: form.razonSocial, regimen: regimenStr,
+      usoCfdi: cfdiStr, email: form.email, status: 'Pendiente',
+      mesero: data.mesero,
+    }
 
-      // Email
-      const emailData: EmailData = {
-        id: solId, fecha: date, hora: time, mesa: data.mesa,
-        monto: data.monto, tipoPago: data.tipoPago, rfc,
-        razonSocial: form.razonSocial, regimen: regimenStr,
-        usoCfdi: cfdiStr, email: form.email, status: 'Pendiente',
-        mesero: data.mesero,
-      }
+    // Guardar para posible reintento manual
+    retryRef.current = { items, emailData, solId }
 
-      try {
-        await batchAppend(items, emailData)
-        try { await sendConfirmation(solId, emailData) } catch { /* silencioso */ }
-      } catch {
-        await enqueueOp({
-          type: 'batchAppend', items, emailData,
-          createdAt: Date.now(), retries: 0,
-        })
-      }
+    try {
+      // Intento con 3 reintentos automáticos
+      await withRetry(() => batchAppend(items, emailData), 3)
+
+      // Email de confirmación (no bloquea éxito)
+      try { await sendConfirmation(solId, emailData) } catch { /* silencioso */ }
 
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.solicitudes })
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.clientes })
+      setSavedSolId(solId)
       setDone(true)
       try { navigator.vibrate?.([50, 30, 80]) } catch { /* */ }
     } catch {
+      setSendError(
+        'No se pudo enviar tu solicitud. Verifica tu conexión a internet e intenta de nuevo.'
+      )
+    } finally {
       setSending(false)
     }
   }
 
-  // ── Loading mientras verifica si ya existe solicitud ────────
+  async function handleRetry() {
+    if (!retryRef.current) return
+    setSending(true)
+    setSendError('')
+
+    const { items, emailData, solId } = retryRef.current
+
+    try {
+      await withRetry(() => batchAppend(items, emailData), 3)
+      try { await sendConfirmation(solId, emailData) } catch { /* */ }
+
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.solicitudes })
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.clientes })
+      setSavedSolId(solId)
+      setDone(true)
+      try { navigator.vibrate?.([50, 30, 80]) } catch { /* */ }
+    } catch {
+      setSendError(
+        'Sigue sin poder conectar. Envía un WhatsApp a Mozzafiato para que te ayuden.'
+      )
+    } finally {
+      setSending(false)
+    }
+  }
+
+  function openMozzafiatoWa() {
+    const id = savedSolId || retryRef.current?.solId || '—'
+    const url = buildNotifyWaUrl(id, form.rfc.toUpperCase(), data.monto, data.mesa, form.email)
+    window.open(url, '_blank')
+  }
+
+  // ── Loading ────────────────────────────────────────────────
   if (loadingSols) {
     return (
       <div className="h-dvh bg-bg flex flex-col items-center justify-center px-6">
@@ -224,7 +287,7 @@ export function LlevarPage({ data }: LlevarPageProps) {
     )
   }
 
-  // ── Pantalla de ESTATUS (ya solicitó factura) ──────────────
+  // ── ESTATUS (ya solicitó factura) ──────────────────────────
   if (existing && !done) {
     const cfg = STATUS_CONFIG[existing.status] ?? STATUS_CONFIG.Pendiente
     return (
@@ -238,26 +301,22 @@ export function LlevarPage({ data }: LlevarPageProps) {
         </header>
 
         <div className="flex-1 px-4 pt-6 pb-8 max-w-sm mx-auto w-full overflow-y-auto">
-          {/* Saludo */}
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
             className="text-center mb-5">
             <p className="text-lg font-bold text-white">¡Hola de nuevo! 👋</p>
             <p className="text-sm text-muted mt-1">Tu solicitud de factura ya fue registrada. Aquí puedes consultar su estatus.</p>
           </motion.div>
 
-          {/* Badge de estatus */}
           <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.05 }}
             className={`border rounded-xl p-5 text-center mb-6 ${cfg.bg}`}>
-            <p className={`text-3xl mb-2`}>{cfg.label.split(' ')[0]}</p>
+            <p className="text-3xl mb-2">{cfg.label.split(' ')[0]}</p>
             <p className={`text-xl font-bold ${cfg.color}`}>{cfg.label.split(' ').slice(1).join(' ')}</p>
             <p className="text-muted text-xs mt-2">ID: {existing.id}</p>
           </motion.div>
 
-          {/* Datos de la solicitud */}
           <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
             className="bg-surface border border-white/10 rounded-xl p-4 space-y-3">
             <p className="text-xs text-accent font-semibold uppercase tracking-wider">Detalles de la solicitud</p>
-
             <div className="grid grid-cols-2 gap-3 text-sm">
               <Detail label="Mesa" value={existing.mesa} />
               <Detail label="Monto" value={fmt$(existing.monto)} />
@@ -266,7 +325,6 @@ export function LlevarPage({ data }: LlevarPageProps) {
               <Detail label="Hora" value={existing.hora} />
               <Detail label="Mesero" value={existing.mesero} />
             </div>
-
             <div className="border-t border-white/10 pt-3 space-y-2">
               <Detail label="RFC" value={existing.rfc} />
               <Detail label="Razón Social" value={existing.razonSocial} />
@@ -274,7 +332,6 @@ export function LlevarPage({ data }: LlevarPageProps) {
             </div>
           </motion.div>
 
-          {/* Mensaje informativo */}
           <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}
             className="text-center text-muted text-xs mt-5">
             {existing.status === 'Pendiente'
@@ -283,12 +340,23 @@ export function LlevarPage({ data }: LlevarPageProps) {
               ? 'Tu factura ya fue emitida. Revisa tu correo electrónico.'
               : 'Esta solicitud fue cancelada. Contacta al restaurante para más información.'}
           </motion.p>
+
+          {/* WhatsApp a Mozzafiato */}
+          <motion.button initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.25 }}
+            onClick={() => {
+              const url = buildNotifyWaUrl(existing.id, existing.rfc, existing.monto, existing.mesa, existing.email)
+              window.open(url, '_blank')
+            }}
+            className="btn w-full mt-4 text-sm font-bold"
+            style={{ background: '#25D366', color: '#fff' }}>
+            💬 Contactar a Mozzafiato por WhatsApp
+          </motion.button>
         </div>
       </div>
     )
   }
 
-  // ── Pantalla de éxito (acaba de enviar) ────────────────────
+  // ── ÉXITO (acaba de enviar) ────────────────────────────────
   if (done) {
     return (
       <div className="h-dvh bg-bg flex flex-col items-center justify-center px-6 text-center overflow-hidden relative">
@@ -314,18 +382,29 @@ export function LlevarPage({ data }: LlevarPageProps) {
             {SUCCESS_MESSAGES[msgIdx]}
           </motion.p>
         </AnimatePresence>
-        <div className="bg-surface/60 border border-white/10 rounded-xl px-4 py-3 backdrop-blur-sm">
+        <div className="bg-surface/60 border border-white/10 rounded-xl px-4 py-3 backdrop-blur-sm mb-4">
           <p className="text-white text-sm font-medium">Mesa {data.mesa} · {fmt$(data.monto)}</p>
           <p className="text-muted text-xs mt-1">Se enviará confirmación a {form.email}</p>
         </div>
+
+        {/* Botón WhatsApp a Mozzafiato */}
+        <motion.button
+          initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
+          onClick={openMozzafiatoWa}
+          className="btn w-full max-w-[280px] text-sm font-bold"
+          style={{ background: '#25D366', color: '#fff' }}>
+          💬 Notificar a Mozzafiato por WhatsApp
+        </motion.button>
+        <p className="text-muted text-xs mt-2 max-w-[260px]">
+          Opcional: avísanos por WhatsApp para confirmar tu solicitud
+        </p>
       </div>
     )
   }
 
-  // ── Formulario principal ───────────────────────────────────
+  // ── FORMULARIO ─────────────────────────────────────────────
   return (
     <div className="h-dvh bg-bg flex flex-col overflow-hidden">
-      {/* Header con logo */}
       <header className="bg-surface border-b border-white/10 px-4 py-3 flex items-center gap-3">
         <img src={LOGO} alt="Logo" className="h-7 w-auto object-contain flex-shrink-0" />
         <div className="flex-1 min-w-0">
@@ -344,7 +423,7 @@ export function LlevarPage({ data }: LlevarPageProps) {
           </p>
         </motion.div>
 
-        {/* Datos del pedido (solo lectura) */}
+        {/* Datos del pedido */}
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
           className="bg-accent/10 border border-accent/30 rounded-xl p-4 mb-5">
           <p className="text-xs text-accent font-semibold uppercase tracking-wider mb-2">Datos del pedido</p>
@@ -357,8 +436,27 @@ export function LlevarPage({ data }: LlevarPageProps) {
           <p className="text-xs text-muted mt-2">Mesero: {data.mesero}</p>
         </motion.div>
 
+        {/* Error de envío */}
+        {sendError && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+            className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 mb-4 text-center">
+            <p className="text-red-400 text-sm font-medium mb-3">{sendError}</p>
+            <div className="flex gap-2">
+              <button onClick={handleRetry} disabled={sending}
+                className="btn flex-1 bg-accent text-white text-sm font-bold disabled:opacity-50">
+                {sending ? 'Reintentando...' : '🔄 Reintentar'}
+              </button>
+              <button onClick={openMozzafiatoWa}
+                className="btn flex-1 text-sm font-bold"
+                style={{ background: '#25D366', color: '#fff' }}>
+                💬 WhatsApp
+              </button>
+            </div>
+          </motion.div>
+        )}
+
         <AnimatePresence mode="wait">
-          {/* ── Fase 1: Búsqueda RFC ──────────────────────── */}
+          {/* Fase 1: Búsqueda RFC */}
           {!selected && !isNew && (
             <motion.div key="buscar" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
               <div className="text-center mb-4">
@@ -399,7 +497,7 @@ export function LlevarPage({ data }: LlevarPageProps) {
             </motion.div>
           )}
 
-          {/* ── Fase 2: Formulario fiscal ─────────────────── */}
+          {/* Fase 2: Formulario fiscal */}
           {(selected || isNew) && (
             <motion.div key="form" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
               <div className="flex items-center justify-between mb-4">
@@ -460,7 +558,7 @@ export function LlevarPage({ data }: LlevarPageProps) {
 
                 <button type="submit" disabled={sending}
                   className="btn btn-primary w-full mt-2 disabled:opacity-50">
-                  {sending ? 'Enviando...' : '🧾 Solicitar Factura'}
+                  {sending ? 'Enviando... (puede tardar unos segundos)' : '🧾 Solicitar Factura'}
                 </button>
               </form>
             </motion.div>
