@@ -94,7 +94,10 @@ export function buildWhatsAppUrl(phone: string, llevarUrl: string, monto: string
     `3️⃣ Confirma tus datos fiscales y envía\n\n` +
     `🧾 Genera tu factura aquí:\n` +
     `${llevarUrl}\n\n` +
-    `_Este link es válido por 5 días. Puedes volver a abrirlo para consultar el estatus de tu factura._`
+    `📌 *Después de enviar tu solicitud:*\n` +
+    `• Vuelve a abrir este mismo link para consultar el estatus de tu factura\n` +
+    `• Si tienes dudas o aclaraciones, comunícate con nosotros por este mismo chat\n\n` +
+    `_Este link es válido por 5 días._`
   )
   return `https://wa.me/${full}?text=${msg}`
 }
