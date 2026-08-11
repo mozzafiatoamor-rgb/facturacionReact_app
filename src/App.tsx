@@ -25,7 +25,7 @@ import { useOfflineSync } from './hooks/useOfflineSync'
 import { useNuevaSolicitud } from './hooks/useSheets'
 import { fetchSolicitudes, fetchClientes, fetchUsuarios, fetchBitacora } from './api/sheets'
 import { QUERY_KEYS, STALE_TIMES } from './api/config'
-import { getLlevarParam, decodeLlevar, isExpired, clearLlevarParam } from './utils/llevar'
+import { getLlevarParam, decodeLlevar, isExpired, clearLlevarParam, injectConfig } from './utils/llevar'
 import { LOGO } from './assets/logo'
 
 import type { FlowStep, CurrentOrder } from './api/types'
@@ -63,6 +63,8 @@ export default function App() {
       setLlevarExpired(true)
       clearLlevarParam()
     } else {
+      // Inyectar config del mesero en localStorage para que las APIs funcionen
+      if (decoded.config) injectConfig(decoded.config)
       setLlevarData(decoded)
       clearLlevarParam()
     }

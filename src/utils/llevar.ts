@@ -1,7 +1,9 @@
 // ============================================================
 // LLEVAR.TS — Codificación/decodificación de links "para llevar"
-// Codifica datos del pedido en base64 para URL, con expiración 24h
+// Codifica datos del pedido + config en base64 para URL
 // ============================================================
+
+import type { AppConfig } from '../api/types'
 
 export interface LlevarData {
   mesa: string
@@ -11,6 +13,8 @@ export interface LlevarData {
   fecha: string
   hora: string
   exp: number // timestamp de expiración
+  // Config embebida para que funcione en el dispositivo del cliente
+  config?: AppConfig
 }
 
 const EXPIRY_MS = 5 * 24 * 60 * 60 * 1000 // 5 días
@@ -24,16 +28,31 @@ interface CompactPayload {
   f: string  // fecha
   h: string  // hora
   e: number  // exp
+  // Config compacta
+  s: string  // sheetId
+  a: string  // apiKey
+  u: string  // scriptUrl
+}
+
+function getStoredConfig(): AppConfig {
+  try {
+    return JSON.parse(localStorage.getItem('_mzf_facturas_config') ?? 'null') ?? { sheetId: '', apiKey: '', scriptUrl: '' }
+  } catch {
+    return { sheetId: '', apiKey: '', scriptUrl: '' }
+  }
 }
 
 /**
- * Codifica los datos del pedido en un string base64 URL-safe (claves cortas).
+ * Codifica los datos del pedido + config en un string base64 URL-safe.
+ * La config se toma de localStorage del mesero que genera el link.
  */
-export function encodeLlevar(data: Omit<LlevarData, 'exp'>): string {
+export function encodeLlevar(data: Omit<LlevarData, 'exp' | 'config'>): string {
+  const cfg = getStoredConfig()
   const payload: CompactPayload = {
     m: data.mesa, $: data.monto, t: data.tipoPago,
     w: data.mesero, f: data.fecha, h: data.hora,
     e: Date.now() + EXPIRY_MS,
+    s: cfg.sheetId, a: cfg.apiKey, u: cfg.scriptUrl,
   }
   const json = JSON.stringify(payload)
   return btoa(json).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
@@ -42,6 +61,7 @@ export function encodeLlevar(data: Omit<LlevarData, 'exp'>): string {
 /**
  * Decodifica un string base64 URL-safe a LlevarData.
  * Soporta tanto claves compactas (m/$) como legacy (mesa/monto).
+ * Extrae config embebida si existe.
  */
 export function decodeLlevar(encoded: string): LlevarData | null {
   try {
@@ -50,15 +70,37 @@ export function decodeLlevar(encoded: string): LlevarData | null {
     const json = atob(b64)
     const raw = JSON.parse(json)
 
-    // Soportar ambos formatos
-    const data: LlevarData = raw.m != null
-      ? { mesa: raw.m, monto: raw.$, tipoPago: raw.t, mesero: raw.w, fecha: raw.f, hora: raw.h, exp: raw.e }
-      : raw as LlevarData
+    // Formato compacto
+    if (raw.m != null) {
+      const data: LlevarData = {
+        mesa: raw.m, monto: raw.$, tipoPago: raw.t,
+        mesero: raw.w, fecha: raw.f, hora: raw.h, exp: raw.e,
+      }
+      // Extraer config si viene embebida
+      if (raw.s && raw.a && raw.u) {
+        data.config = { sheetId: raw.s, apiKey: raw.a, scriptUrl: raw.u }
+      }
+      if (!data.mesa || !data.monto || !data.exp) return null
+      return data
+    }
 
+    // Formato legacy
+    const data = raw as LlevarData
     if (!data.mesa || !data.monto || !data.exp) return null
     return data
   } catch {
     return null
+  }
+}
+
+/**
+ * Inyecta la config del link en localStorage (para que sheets.ts y appscript.ts la encuentren).
+ * Solo escribe si no hay config existente o si está vacía.
+ */
+export function injectConfig(config: AppConfig): void {
+  const existing = getStoredConfig()
+  if (!existing.sheetId && !existing.apiKey && !existing.scriptUrl) {
+    localStorage.setItem('_mzf_facturas_config', JSON.stringify(config))
   }
 }
 
@@ -72,7 +114,7 @@ export function isExpired(data: LlevarData): boolean {
 /**
  * Genera la URL completa del formulario para llevar.
  */
-export function buildLlevarUrl(data: Omit<LlevarData, 'exp'>): string {
+export function buildLlevarUrl(data: Omit<LlevarData, 'exp' | 'config'>): string {
   const base = window.location.origin + import.meta.env.BASE_URL
   const code = encodeLlevar(data)
   return `${base}?llevar=${code}`
