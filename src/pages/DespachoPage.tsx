@@ -14,7 +14,6 @@ import { getLogo } from '../assets/logos'
 import { NEGOCIO_LIST, getNegocio } from '../config/businesses'
 import { fmt$ } from '../utils/dates'
 import type { Solicitud, Cliente } from '../api/types'
-import type { NegocioId } from '../config/businesses'
 
 type FilterStatus = 'all' | 'Pendiente' | 'Procesada' | 'Cancelada'
 
