@@ -57,6 +57,7 @@ export interface Solicitud {
   mesero: string          // Col M
   notas: string           // Col N
   codigoPostal: string    // Col O
+  negocio: string         // Col P — 'mozzafiato' | 'casaregina'
   _row: number
   // Campo virtual para optimistic UI
   _optimistic?: boolean
@@ -139,6 +140,7 @@ export interface CurrentOrder {
   tipoPago: string
   notas: string
   mesero: string
+  negocio: string
 }
 
 // ── Catálogo SAT

@@ -15,6 +15,7 @@ import { enqueueOp } from '../store/db'
 import { QUERY_KEYS, STALE_TIMES } from '../api/config'
 import { now } from '../utils/dates'
 import { generateId } from '../utils/ids'
+import { getNegocio } from '../config/businesses'
 import type { Solicitud, Cliente, BatchItem, EmailData } from '../api/types'
 import { SHEET_NAMES } from '../api/config'
 
@@ -86,6 +87,7 @@ interface NuevaSolicitudInput {
   email:       string
   codigoPostal:string
   isNewCliente:boolean
+  negocio:     string
 }
 
 export function useNuevaSolicitud() {
@@ -95,13 +97,13 @@ export function useNuevaSolicitud() {
   return useMutation({
     mutationFn: async (input: NuevaSolicitudInput) => {
       const { date, time } = now()
-      const solId = generateId('SOL')
+      const neg = getNegocio(input.negocio)
+      const solId = generateId(neg.folioPrefix)
 
       // Filas para batchAppend
       const items: BatchItem[] = []
 
       // regimen y usoCfdi ya vienen como texto completo desde el formulario
-      // Ej: "626 - Régimen Simplificado de Confianza (RESICO)"
       const regimenStr = input.regimen
       const cfdiStr    = input.usoCfdi
       items.push({
@@ -122,6 +124,7 @@ export function useNuevaSolicitud() {
           input.mesero,
           input.notas,
           input.codigoPostal,
+          input.negocio,
         ]],
       })
 
@@ -207,6 +210,7 @@ export function useNuevaSolicitud() {
         mesero:      input.mesero,
         notas:       input.notas,
         codigoPostal:input.codigoPostal,
+        negocio:     input.negocio,
         _row:        -1,
         _optimistic: true,
       }

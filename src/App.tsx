@@ -1,7 +1,7 @@
 // ============================================================
 // APP.TSX — Orquestador de pantallas con animaciones de transición
 // Router manual basado en FlowStep + gestión de estado de flujo
-// Detecta ?llevar= en URL para mostrar formulario público
+// Detecta ?llevar= y ?despacho= en URL para vistas públicas
 // ============================================================
 
 import { useState, useCallback, useEffect } from 'react'
@@ -18,6 +18,7 @@ import { ConfirmPage  } from './pages/ConfirmPage'
 import { SuccessPage  } from './pages/SuccessPage'
 import { AdminPage    } from './pages/AdminPage'
 import { LlevarPage   } from './pages/LlevarPage'
+import { DespachoPage } from './pages/DespachoPage'
 import { LoadingOverlay } from './components/shared/LoadingOverlay'
 import { ToastContainer } from './components/shared/Toast'
 import { useToast } from './hooks/useToast'
@@ -25,7 +26,11 @@ import { useOfflineSync } from './hooks/useOfflineSync'
 import { useNuevaSolicitud } from './hooks/useSheets'
 import { fetchSolicitudes, fetchClientes, fetchUsuarios, fetchBitacora } from './api/sheets'
 import { QUERY_KEYS, STALE_TIMES } from './api/config'
-import { getLlevarParam, decodeLlevar, isExpired, clearLlevarParam, injectConfig } from './utils/llevar'
+import {
+  getLlevarParam, decodeLlevar, isExpired,
+  getDespachoParam, decodeDespacho,
+  clearSpecialParams, injectConfig,
+} from './utils/llevar'
 import { LOGO } from './assets/logo'
 
 import type { FlowStep, CurrentOrder } from './api/types'
@@ -50,23 +55,36 @@ export default function App() {
   const [cliente, setCliente] = useState<ClienteFormData | null>(null)
   const [isNew,   setIsNew  ] = useState(false)
 
-  // ── Detectar link "para llevar" en URL ────────────────────
+  // ── Detectar links especiales en URL ──────────────────────
   const [llevarData, setLlevarData] = useState<LlevarData | null>(null)
   const [llevarExpired, setLlevarExpired] = useState(false)
+  const [isDespacho, setIsDespacho] = useState(false)
 
   useEffect(() => {
+    // Primero: ¿es link de despacho contable?
+    const despachoParam = getDespachoParam()
+    if (despachoParam) {
+      const cfg = decodeDespacho(despachoParam)
+      if (cfg) {
+        injectConfig(cfg)
+        setIsDespacho(true)
+        clearSpecialParams()
+        return
+      }
+    }
+
+    // Segundo: ¿es link "para llevar" de cliente?
     const param = getLlevarParam()
     if (!param) return
     const decoded = decodeLlevar(param)
     if (!decoded) return
     if (isExpired(decoded)) {
       setLlevarExpired(true)
-      clearLlevarParam()
+      clearSpecialParams()
     } else {
-      // Inyectar config del mesero en localStorage para que las APIs funcionen
       if (decoded.config) injectConfig(decoded.config)
       setLlevarData(decoded)
-      clearLlevarParam()
+      clearSpecialParams()
     }
   }, [])
 
@@ -118,6 +136,7 @@ export default function App() {
           email:         cliente.email,
           codigoPostal:  cliente.codigoPostal,
           isNewCliente:  isNew,
+          negocio:       order.negocio,
         })
       } catch {
         toast('⚠️ Se guardó offline — se enviará al recuperar conexión', 'info')
@@ -130,6 +149,15 @@ export default function App() {
     setCliente(null)
     setIsNew(false)
     setStep('mesero')
+  }
+
+  // ── Render: panel del despacho contable ────────────────────
+  if (isDespacho) {
+    return (
+      <div className="font-sans antialiased text-white h-dvh overflow-hidden">
+        <DespachoPage />
+      </div>
+    )
   }
 
   // ── Render: link "para llevar" (formulario público, sin login) ──
@@ -161,7 +189,6 @@ export default function App() {
   // ── Render: flujo normal (con auth) ────────────────────────
   return (
     <div className="font-sans antialiased text-white h-dvh overflow-hidden">
-        {/* Transiciones de pantalla */}
         <AnimatePresence mode="wait">
           <motion.div
             key={step}
@@ -224,7 +251,6 @@ export default function App() {
           </motion.div>
         </AnimatePresence>
 
-        {/* Globales */}
         <LoadingOverlay />
         <ToastContainer toasts={toasts} dismiss={dismiss} />
       </div>

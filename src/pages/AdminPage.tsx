@@ -21,6 +21,7 @@ import {
   useInvalidate,
 } from '../hooks/useSheets'
 import { fmt$, isToday } from '../utils/dates'
+import { encodeDespacho } from '../utils/llevar'
 import type { AdminTab, FilterStatus, Solicitud } from '../api/types'
 
 const TABS: { value: AdminTab; label: string }[] = [
@@ -124,9 +125,28 @@ export function AdminPage({ onNavigate }: AdminPageProps) {
         }
       />
 
-      {/* Stats del día */}
+      {/* Stats del día + link despacho */}
       <div className="px-4 pt-4">
-        <p className="text-xs text-muted font-semibold uppercase tracking-wider mb-2">Hoy</p>
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-xs text-muted font-semibold uppercase tracking-wider">Hoy</p>
+          <button
+            onClick={() => {
+              const base = window.location.origin + import.meta.env.BASE_URL
+              const token = encodeDespacho()
+              const url = `${base}?despacho=${token}`
+              navigator.clipboard.writeText(url).then(
+                () => toast('📋 Link del despacho copiado al portapapeles'),
+                () => {
+                  prompt('Copia este link:', url)
+                  toast('Link generado')
+                }
+              )
+            }}
+            className="text-[10px] text-accent px-2 py-1 rounded-lg bg-accent/10 hover:bg-accent/20 transition-colors"
+          >
+            🔗 Link Despacho
+          </button>
+        </div>
         <div className="grid grid-cols-4 gap-2 mb-4">
           <StatBox label="Total"    value={statsHoy.total}      />
           <StatBox label="Pend."    value={statsHoy.pendientes} highlight={statsHoy.pendientes > 0} />

@@ -67,6 +67,7 @@ export async function fetchSolicitudes(): Promise<Solicitud[]> {
     mesero:       r[12] ?? '',
     notas:        r[13] ?? '',
     codigoPostal: r[14] ?? '',
+    negocio:      r[15] ?? 'mozzafiato',
     _row:         i + 2,
   }))
 }

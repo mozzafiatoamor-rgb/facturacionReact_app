@@ -11,7 +11,7 @@ export const SHEET_NAMES = {
 // ── Rangos de lectura
 export const SHEET_RANGES = {
   clientes:    `${SHEET_NAMES.clientes}!A2:I5000`,
-  solicitudes: `${SHEET_NAMES.solicitudes}!A2:P1000`,
+  solicitudes: `${SHEET_NAMES.solicitudes}!A2:Q1000`,
   usuarios:    `${SHEET_NAMES.usuarios}!A2:E50`,
   bitacora:    `${SHEET_NAMES.bitacora}!A2:F500`,
 } as const

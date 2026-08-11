@@ -41,14 +41,21 @@ jobs:
 
       # 4. Copiar íconos y logo antes del build
       #    (Los archivos icon-*.png y logo.png deben estar en la raíz del repo)
-      - name: Copy icons and logo
+      - name: Copy icons and logos
         run: |
           mkdir -p public
           mkdir -p src/assets
           [ -f icon-192.png ]      && cp icon-192.png      public/ || echo "⚠️  icon-192.png no encontrado"
           [ -f icon-512.png ]      && cp icon-512.png      public/ || echo "⚠️  icon-512.png no encontrado"
           [ -f icon-maskable.png ] && cp icon-maskable.png public/ || echo "⚠️  icon-maskable.png no encontrado"
-          [ -f icon-512.png ]      && cp icon-512.png      src/assets/logo.png || echo "⚠️  logo no copiado a src/assets/"
+          [ -f icon-512.png ]      && cp icon-512.png      src/assets/logo.png || echo "⚠️  logo Mozzafiato no copiado"
+          # Logo Casa Regina — si no existe, usa placeholder
+          if [ -f logo-regina.png ]; then
+            cp logo-regina.png src/assets/logo-regina.png
+          else
+            echo "⚠️  logo-regina.png no encontrado, usando placeholder"
+            cp icon-512.png src/assets/logo-regina.png
+          fi
 
       # 5. Build con variable de entorno VITE_BASE_URL
       - name: Build

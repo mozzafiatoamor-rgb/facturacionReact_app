@@ -1,6 +1,6 @@
 // ============================================================
 // LLEVAR.TS — Codificación/decodificación de links "para llevar"
-// Codifica datos del pedido + config en base64 para URL
+// Codifica datos del pedido + config + negocio en base64 para URL
 // ============================================================
 
 import type { AppConfig } from '../api/types'
@@ -12,9 +12,9 @@ export interface LlevarData {
   mesero: string
   fecha: string
   hora: string
-  exp: number // timestamp de expiración
-  // Config embebida para que funcione en el dispositivo del cliente
-  config?: AppConfig
+  negocio: string    // 'mozzafiato' | 'casaregina'
+  exp: number        // timestamp de expiración
+  config?: AppConfig // config embebida para dispositivo del cliente
 }
 
 const EXPIRY_MS = 5 * 24 * 60 * 60 * 1000 // 5 días
@@ -27,6 +27,7 @@ interface CompactPayload {
   w: string  // mesero
   f: string  // fecha
   h: string  // hora
+  n: string  // negocio
   e: number  // exp
   // Config compacta
   s: string  // sheetId
@@ -44,13 +45,13 @@ function getStoredConfig(): AppConfig {
 
 /**
  * Codifica los datos del pedido + config en un string base64 URL-safe.
- * La config se toma de localStorage del mesero que genera el link.
  */
 export function encodeLlevar(data: Omit<LlevarData, 'exp' | 'config'>): string {
   const cfg = getStoredConfig()
   const payload: CompactPayload = {
     m: data.mesa, $: data.monto, t: data.tipoPago,
     w: data.mesero, f: data.fecha, h: data.hora,
+    n: data.negocio || 'mozzafiato',
     e: Date.now() + EXPIRY_MS,
     s: cfg.sheetId, a: cfg.apiKey, u: cfg.scriptUrl,
   }
@@ -60,8 +61,6 @@ export function encodeLlevar(data: Omit<LlevarData, 'exp' | 'config'>): string {
 
 /**
  * Decodifica un string base64 URL-safe a LlevarData.
- * Soporta tanto claves compactas (m/$) como legacy (mesa/monto).
- * Extrae config embebida si existe.
  */
 export function decodeLlevar(encoded: string): LlevarData | null {
   try {
@@ -74,9 +73,10 @@ export function decodeLlevar(encoded: string): LlevarData | null {
     if (raw.m != null) {
       const data: LlevarData = {
         mesa: raw.m, monto: raw.$, tipoPago: raw.t,
-        mesero: raw.w, fecha: raw.f, hora: raw.h, exp: raw.e,
+        mesero: raw.w, fecha: raw.f, hora: raw.h,
+        negocio: raw.n || 'mozzafiato',
+        exp: raw.e,
       }
-      // Extraer config si viene embebida
       if (raw.s && raw.a && raw.u) {
         data.config = { sheetId: raw.s, apiKey: raw.a, scriptUrl: raw.u }
       }
@@ -86,6 +86,7 @@ export function decodeLlevar(encoded: string): LlevarData | null {
 
     // Formato legacy
     const data = raw as LlevarData
+    if (!data.negocio) data.negocio = 'mozzafiato'
     if (!data.mesa || !data.monto || !data.exp) return null
     return data
   } catch {
@@ -94,8 +95,7 @@ export function decodeLlevar(encoded: string): LlevarData | null {
 }
 
 /**
- * Inyecta la config del link en localStorage (para que sheets.ts y appscript.ts la encuentren).
- * Solo escribe si no hay config existente o si está vacía.
+ * Inyecta la config del link en localStorage.
  */
 export function injectConfig(config: AppConfig): void {
   const existing = getStoredConfig()
@@ -123,13 +123,11 @@ export function buildLlevarUrl(data: Omit<LlevarData, 'exp' | 'config'>): string
 /**
  * Genera el link de WhatsApp con mensaje prellenado.
  */
-export function buildWhatsAppUrl(phone: string, llevarUrl: string, monto: string): string {
-  // Limpiar número: solo dígitos
+export function buildWhatsAppUrl(phone: string, llevarUrl: string, monto: string, negocioName = 'Mozzafiato'): string {
   const clean = phone.replace(/\D/g, '')
-  // Agregar código de país si no lo tiene (México = 52)
   const full = clean.length === 10 ? `52${clean}` : clean
   const msg = encodeURIComponent(
-    `¡Hola! 👋 Gracias por tu visita a *Mozzafiato* 🍕\n\n` +
+    `¡Hola! 👋 Gracias por tu visita a *${negocioName}*\n\n` +
     `Para solicitar tu factura por *$${monto}*, sigue estos pasos:\n\n` +
     `1️⃣ Abre el siguiente link\n` +
     `2️⃣ Busca tu RFC o regístralo como nuevo\n` +
@@ -144,6 +142,29 @@ export function buildWhatsAppUrl(phone: string, llevarUrl: string, monto: string
   return `https://wa.me/${full}?text=${msg}`
 }
 
+// ── Token del despacho contable ──────────────────────────────
+// Codifica la config para que el despacho pueda acceder sin login
+
+export function encodeDespacho(): string {
+  const cfg = getStoredConfig()
+  const payload = { s: cfg.sheetId, a: cfg.apiKey, u: cfg.scriptUrl }
+  const json = JSON.stringify(payload)
+  return btoa(json).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+}
+
+export function decodeDespacho(encoded: string): AppConfig | null {
+  try {
+    let b64 = encoded.replace(/-/g, '+').replace(/_/g, '/')
+    while (b64.length % 4) b64 += '='
+    const json = atob(b64)
+    const raw = JSON.parse(json)
+    if (!raw.s || !raw.a || !raw.u) return null
+    return { sheetId: raw.s, apiKey: raw.a, scriptUrl: raw.u }
+  } catch {
+    return null
+  }
+}
+
 /**
  * Lee el parámetro ?llevar= de la URL actual.
  */
@@ -153,10 +174,26 @@ export function getLlevarParam(): string | null {
 }
 
 /**
- * Limpia el parámetro ?llevar= de la URL sin recargar.
+ * Lee el parámetro ?despacho= de la URL actual.
  */
-export function clearLlevarParam(): void {
+export function getDespachoParam(): string | null {
+  const params = new URLSearchParams(window.location.search)
+  return params.get('despacho')
+}
+
+/**
+ * Limpia parámetros especiales de la URL sin recargar.
+ */
+export function clearSpecialParams(): void {
   const url = new URL(window.location.href)
   url.searchParams.delete('llevar')
+  url.searchParams.delete('despacho')
   window.history.replaceState({}, '', url.toString())
+}
+
+/**
+ * @deprecated Use clearSpecialParams instead
+ */
+export function clearLlevarParam(): void {
+  clearSpecialParams()
 }
