@@ -13,6 +13,8 @@ export interface Negocio {
   emoji: string
   color: string      // accent color para diferenciar
   logoKey: 'mozzafiato' | 'casaregina'
+  labelMesero: string   // "Mesero" o "Recepcionista"
+  labelMesa: string     // "Mesa" o "Habitación"
 }
 
 export const NEGOCIOS: Record<NegocioId, Negocio> = {
@@ -24,6 +26,8 @@ export const NEGOCIOS: Record<NegocioId, Negocio> = {
     emoji: '🍕',
     color: '#3b82f6',
     logoKey: 'mozzafiato',
+    labelMesero: 'Mesero',
+    labelMesa: 'Mesa',
   },
   casaregina: {
     id: 'casaregina',
@@ -33,6 +37,8 @@ export const NEGOCIOS: Record<NegocioId, Negocio> = {
     emoji: '🏨',
     color: '#a855f7',
     logoKey: 'casaregina',
+    labelMesero: 'Recepcionista',
+    labelMesa: 'Habitación',
   },
 }
 

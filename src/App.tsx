@@ -61,16 +61,22 @@ export default function App() {
   const [isDespacho, setIsDespacho] = useState(false)
 
   useEffect(() => {
-    // Primero: ¿es link de despacho contable?
+    // Primero: ¿es link de despacho contable? (o ya se marcó como despacho antes)
     const despachoParam = getDespachoParam()
     if (despachoParam) {
       const cfg = decodeDespacho(despachoParam)
       if (cfg) {
         injectConfig(cfg)
+        localStorage.setItem('_mzf_despacho', 'true')
         setIsDespacho(true)
         clearSpecialParams()
         return
       }
+    }
+    // Si ya visitó como despacho antes (app instalada o bookmark)
+    if (localStorage.getItem('_mzf_despacho') === 'true') {
+      setIsDespacho(true)
+      return
     }
 
     // Segundo: ¿es link "para llevar" de cliente?

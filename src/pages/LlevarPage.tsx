@@ -64,7 +64,7 @@ function buildNotifyWaUrl(waNumber: string, negocioName: string, solId: string, 
     `• ID: ${solId}\n` +
     `• RFC: ${rfc}\n` +
     `• Monto: $${monto}\n` +
-    `• Mesa: ${mesa}\n` +
+    `• ${negocioName === 'Casa Regina' ? 'Hab' : 'Mesa'}: ${mesa}\n` +
     `• Email: ${email}\n\n` +
     `¿Podrían confirmar que la recibieron? Gracias.`
   )
@@ -296,12 +296,12 @@ export function LlevarPage({ data }: LlevarPageProps) {
             className="bg-surface border border-white/10 rounded-xl p-4 space-y-3">
             <p className="text-xs text-accent font-semibold uppercase tracking-wider">Detalles</p>
             <div className="grid grid-cols-2 gap-3 text-sm">
-              <Detail label="Mesa" value={existing.mesa} />
+              <Detail label={neg.labelMesa} value={existing.mesa} />
               <Detail label="Monto" value={fmt$(existing.monto)} />
               <Detail label="Tipo de pago" value={existing.tipoPago} />
               <Detail label="Fecha" value={existing.fecha} />
               <Detail label="Hora" value={existing.hora} />
-              <Detail label="Mesero" value={existing.mesero} />
+              <Detail label={neg.labelMesero} value={existing.mesero} />
             </div>
             <div className="border-t border-white/10 pt-3 space-y-2">
               <Detail label="RFC" value={existing.rfc} />
@@ -351,7 +351,7 @@ export function LlevarPage({ data }: LlevarPageProps) {
           </motion.p>
         </AnimatePresence>
         <div className="bg-surface/60 border border-white/10 rounded-xl px-4 py-3 backdrop-blur-sm mb-4">
-          <p className="text-white text-sm font-medium">Mesa {data.mesa} · {fmt$(data.monto)}</p>
+          <p className="text-white text-sm font-medium">{neg.labelMesa} {data.mesa} · {fmt$(data.monto)}</p>
           <p className="text-muted text-xs mt-1">Se enviará confirmación a {form.email}</p>
         </div>
         {neg.waNumber && (
@@ -394,12 +394,12 @@ export function LlevarPage({ data }: LlevarPageProps) {
           className="bg-accent/10 border border-accent/30 rounded-xl p-4 mb-5">
           <p className="text-xs text-accent font-semibold uppercase tracking-wider mb-2">Datos del pedido</p>
           <div className="grid grid-cols-2 gap-2 text-sm">
-            <div><span className="text-muted">Mesa:</span> <span className="text-white font-bold">{data.mesa}</span></div>
+            <div><span className="text-muted">{neg.labelMesa}:</span> <span className="text-white font-bold">{data.mesa}</span></div>
             <div><span className="text-muted">Monto:</span> <span className="text-white font-bold">{fmt$(data.monto)}</span></div>
             <div><span className="text-muted">Pago:</span> <span className="text-white">{data.tipoPago}</span></div>
             <div><span className="text-muted">Fecha:</span> <span className="text-white">{data.fecha}</span></div>
           </div>
-          <p className="text-xs text-muted mt-2">Mesero: {data.mesero}</p>
+          <p className="text-xs text-muted mt-2">{neg.labelMesero}: {data.mesero}</p>
         </motion.div>
 
         {sendError && (
