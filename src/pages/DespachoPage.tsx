@@ -229,7 +229,7 @@ function SolicitudCard({ sol, cliente, expanded, onToggle, onCopy, onStatusChang
           </div>
           <p className="text-sm font-semibold text-white truncate">{sol.razonSocial || sol.rfc}</p>
           <p className="text-xs text-muted mt-0.5">
-            Mesa {sol.mesa} · {fmt$(sol.monto)} · {sol.fecha} {sol.hora}
+            {neg.labelMesa} {sol.mesa} · {fmt$(sol.monto)} · {sol.fecha} {sol.hora}
           </p>
         </div>
         <span className={`text-xs font-bold px-2.5 py-1 rounded-full border whitespace-nowrap ${statusClass}`}>
@@ -268,10 +268,10 @@ function SolicitudCard({ sol, cliente, expanded, onToggle, onCopy, onStatusChang
               {/* Datos del pedido */}
               <p className="text-xs text-muted font-semibold uppercase tracking-wider mb-2">Pedido</p>
               <div className="grid grid-cols-3 gap-2 text-xs mb-4">
-                <div><span className="text-muted">Mesa:</span> <span className="text-white font-bold">{sol.mesa}</span></div>
+                <div><span className="text-muted">{neg.labelMesa}:</span> <span className="text-white font-bold">{sol.mesa}</span></div>
                 <div><span className="text-muted">Monto:</span> <span className="text-white font-bold">{fmt$(sol.monto)}</span></div>
                 <div><span className="text-muted">Pago:</span> <span className="text-white">{sol.tipoPago}</span></div>
-                <div><span className="text-muted">Mesero:</span> <span className="text-white">{sol.mesero}</span></div>
+                <div><span className="text-muted">{neg.labelMesero}:</span> <span className="text-white">{sol.mesero}</span></div>
                 <div><span className="text-muted">Fecha:</span> <span className="text-white">{sol.fecha}</span></div>
                 <div><span className="text-muted">Hora:</span> <span className="text-white">{sol.hora}</span></div>
               </div>
