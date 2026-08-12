@@ -132,7 +132,7 @@ export function buildWhatsAppUrl(phone: string, llevarUrl: string, monto: string
     `1️⃣ Abre el siguiente link\n` +
     `2️⃣ Busca tu RFC o regístralo como nuevo\n` +
     `3️⃣ Confirma tus datos fiscales y envía\n\n` +
-    `🧾 Genera tu factura aquí:\n` +
+    `🧾 Solicita tu factura aquí:\n` +
     `${llevarUrl}\n\n` +
     `📌 *Después de enviar tu solicitud:*\n` +
     `• Vuelve a abrir este mismo link para consultar el estatus de tu factura\n` +

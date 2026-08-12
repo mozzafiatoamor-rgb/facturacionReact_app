@@ -9,7 +9,7 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
+      registerType: 'prompt',
       includeAssets: ['icon-192.png', 'icon-512.png', 'icon-maskable.png', 'logo.png'],
       manifest: {
         name: 'Mozzafiato Facturas',
@@ -64,8 +64,8 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         navigateFallback: 'index.html',
         navigateFallbackDenylist: [/^\/api/],
-        skipWaiting: true,
-        clientsClaim: true,
+        // skipWaiting y clientsClaim se manejan desde ReloadPrompt
+        // para que el usuario confirme la actualización
       },
       devOptions: { enabled: false },
     }),

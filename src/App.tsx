@@ -21,6 +21,7 @@ import { LlevarPage   } from './pages/LlevarPage'
 import { DespachoPage } from './pages/DespachoPage'
 import { LoadingOverlay } from './components/shared/LoadingOverlay'
 import { ToastContainer } from './components/shared/Toast'
+import { ReloadPrompt } from './components/shared/ReloadPrompt'
 import { useToast } from './hooks/useToast'
 import { useOfflineSync } from './hooks/useOfflineSync'
 import { useNuevaSolicitud } from './hooks/useSheets'
@@ -162,6 +163,7 @@ export default function App() {
     return (
       <div className="font-sans antialiased text-white h-dvh overflow-hidden">
         <DespachoPage />
+        <ReloadPrompt />
       </div>
     )
   }
@@ -171,6 +173,7 @@ export default function App() {
     return (
       <div className="font-sans antialiased text-white h-dvh overflow-hidden">
         <LlevarPage data={llevarData} />
+        <ReloadPrompt />
       </div>
     )
   }
@@ -259,6 +262,7 @@ export default function App() {
 
         <LoadingOverlay />
         <ToastContainer toasts={toasts} dismiss={dismiss} />
+        <ReloadPrompt />
       </div>
   )
 }

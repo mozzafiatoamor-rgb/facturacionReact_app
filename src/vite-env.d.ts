@@ -1,4 +1,5 @@
 /// <reference types="vite/client" />
+/// <reference types="vite-plugin-pwa/react" />
 
 // Permite importar archivos de imagen como módulos
 declare module '*.png' {
