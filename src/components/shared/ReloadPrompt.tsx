@@ -1,46 +1,43 @@
 // ============================================================
-// RELOADPROMPT.TSX — Banner de "nueva versión disponible"
-// Aparece automáticamente cuando hay un Service Worker nuevo
-// El usuario toca "Actualizar" para cargar la versión más reciente
+// RELOADPROMPT.TSX — Auto-actualización de la PWA
+// Al detectar nueva versión, recarga automáticamente la app.
+// Muestra un breve splash "Actualizando..." mientras recarga.
 // ============================================================
 
+import { useEffect, useState } from 'react'
 import { useRegisterSW } from 'virtual:pwa-register/react'
-import { motion, AnimatePresence } from 'framer-motion'
 
 export function ReloadPrompt() {
+  const [updating, setUpdating] = useState(false)
+
   const {
     needRefresh: [needRefresh],
     updateServiceWorker,
   } = useRegisterSW({
     onRegisteredSW(_url, registration) {
-      // Revisa cada 60s si hay nueva versión
+      // Al abrir la app, busca si hay nueva versión disponible
       if (registration) {
-        setInterval(() => registration.update(), 60_000)
+        registration.update()
       }
     },
   })
 
+  // Cuando detecta nueva versión, actualiza automáticamente
+  useEffect(() => {
+    if (needRefresh) {
+      setUpdating(true)
+      updateServiceWorker(true) // activa el nuevo SW y recarga
+    }
+  }, [needRefresh, updateServiceWorker])
+
+  if (!updating) return null
+
+  // Splash breve mientras recarga
   return (
-    <AnimatePresence>
-      {needRefresh && (
-        <motion.div
-          initial={{ opacity: 0, y: 60 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 60 }}
-          className="fixed bottom-4 left-4 right-4 z-[9999] flex items-center gap-3 bg-accent/95 backdrop-blur-md text-white rounded-2xl px-4 py-3 shadow-lg shadow-accent/30 max-w-md mx-auto"
-        >
-          <span className="text-xl flex-shrink-0">🔄</span>
-          <p className="text-sm font-medium flex-1">
-            Nueva versión disponible
-          </p>
-          <button
-            onClick={() => updateServiceWorker(true)}
-            className="flex-shrink-0 bg-white text-accent font-bold text-xs px-4 py-2 rounded-xl hover:bg-white/90 transition-colors"
-          >
-            Actualizar
-          </button>
-        </motion.div>
-      )}
-    </AnimatePresence>
+    <div className="fixed inset-0 z-[9999] bg-bg flex flex-col items-center justify-center">
+      <div className="w-8 h-8 border-3 border-accent border-t-transparent rounded-full animate-spin mb-4" />
+      <p className="text-white text-sm font-medium">Actualizando...</p>
+      <p className="text-muted text-xs mt-1">Un momento por favor</p>
+    </div>
   )
 }
