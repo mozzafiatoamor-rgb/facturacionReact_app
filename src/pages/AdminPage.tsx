@@ -129,23 +129,31 @@ export function AdminPage({ onNavigate }: AdminPageProps) {
       <div className="px-4 pt-4">
         <div className="flex items-center justify-between mb-2">
           <p className="text-xs text-muted font-semibold uppercase tracking-wider">Hoy</p>
-          <button
-            onClick={() => {
-              const base = window.location.origin + import.meta.env.BASE_URL
-              const token = encodeDespacho()
-              const url = `${base}?despacho=${token}`
-              navigator.clipboard.writeText(url).then(
-                () => toast('📋 Link del despacho copiado al portapapeles'),
-                () => {
-                  prompt('Copia este link:', url)
-                  toast('Link generado')
-                }
-              )
-            }}
-            className="text-[10px] text-accent px-2 py-1 rounded-lg bg-accent/10 hover:bg-accent/20 transition-colors"
-          >
-            🔗 Link Despacho
-          </button>
+          <div className="flex gap-1.5">
+            <button
+              onClick={() => onNavigate('despacho')}
+              className="text-[10px] text-purple-400 px-2 py-1 rounded-lg bg-purple-400/10 hover:bg-purple-400/20 transition-colors"
+            >
+              📋 Vista Contable
+            </button>
+            <button
+              onClick={() => {
+                const base = window.location.origin + import.meta.env.BASE_URL
+                const token = encodeDespacho()
+                const url = `${base}?despacho=${token}`
+                navigator.clipboard.writeText(url).then(
+                  () => toast('📋 Link del despacho copiado al portapapeles'),
+                  () => {
+                    prompt('Copia este link:', url)
+                    toast('Link generado')
+                  }
+                )
+              }}
+              className="text-[10px] text-accent px-2 py-1 rounded-lg bg-accent/10 hover:bg-accent/20 transition-colors"
+            >
+              🔗 Link Despacho
+            </button>
+          </div>
         </div>
         <div className="grid grid-cols-4 gap-2 mb-4">
           <StatBox label="Total"    value={statsHoy.total}      />

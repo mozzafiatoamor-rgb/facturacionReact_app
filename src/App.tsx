@@ -257,6 +257,10 @@ export default function App() {
             {step === 'admin' && (
               <AdminPage onNavigate={navigate} />
             )}
+
+            {step === 'despacho' && (
+              <DespachoPage onBack={() => setStep('admin')} />
+            )}
           </motion.div>
         </AnimatePresence>
 

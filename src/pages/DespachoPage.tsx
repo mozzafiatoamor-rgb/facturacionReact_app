@@ -23,7 +23,11 @@ const STATUS_COLORS: Record<string, string> = {
   Cancelada: 'bg-red-400/15 text-red-400 border-red-400/30',
 }
 
-export function DespachoPage() {
+interface DespachoPageProps {
+  onBack?: () => void
+}
+
+export function DespachoPage({ onBack }: DespachoPageProps = {}) {
   const queryClient = useQueryClient()
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('Pendiente')
   const [filterNegocio, setFilterNegocio] = useState<string>('all')
@@ -107,6 +111,9 @@ export function DespachoPage() {
       {/* Header */}
       <header className="bg-surface border-b border-white/10 px-4 py-3">
         <div className="flex items-center gap-3 max-w-2xl mx-auto">
+          {onBack && (
+            <button onClick={onBack} className="text-muted hover:text-white text-lg flex-shrink-0 -ml-1 mr-1">←</button>
+          )}
           <img src={getLogo('mozzafiato')} alt="Logo" className="h-8 w-auto object-contain flex-shrink-0" />
           <div className="flex-1 min-w-0">
             <p className="text-sm font-bold text-white">Panel Contable</p>

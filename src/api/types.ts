@@ -131,7 +131,7 @@ export interface ToastMessage {
 }
 
 // ── Paso del flujo de solicitud
-export type FlowStep = 'setup' | 'login' | 'home' | 'mesero' | 'cliente' | 'confirm' | 'success' | 'admin' | 'llevar'
+export type FlowStep = 'setup' | 'login' | 'home' | 'mesero' | 'cliente' | 'confirm' | 'success' | 'admin' | 'llevar' | 'despacho'
 
 // ── Datos del paso mesero (orden en curso)
 export interface CurrentOrder {
