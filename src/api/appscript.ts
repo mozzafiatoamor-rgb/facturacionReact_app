@@ -74,3 +74,34 @@ export async function sendConfirmation(
 export async function deleteRow(sheet: string, row: number): Promise<void> {
   await post({ action: 'delete', sheet, row })
 }
+
+// ── TIMBRAR FACTURA (Facturapi) ───────────────────────────
+export interface TimbradoInput {
+  rfc: string
+  razonSocial: string
+  regimen: string
+  usoCfdi: string
+  email: string
+  codigoPostal: string
+  telefono?: string
+  monto: string
+  tipoPago: string
+  negocio: string
+  folioPrefix?: string
+  mesa?: string
+  mesero?: string
+}
+
+export interface TimbradoResult {
+  success: boolean
+  invoiceId: string
+  uuid: string
+  folioNumber: string
+  pdfBase64: string
+  xmlBase64: string
+  error?: string
+}
+
+export async function timbrarFactura(input: TimbradoInput): Promise<TimbradoResult> {
+  return post<TimbradoResult>({ action: 'timbrarFactura', ...input })
+}

@@ -10,7 +10,8 @@ import { getLogo } from '../assets/logos'
 import { getNegocio } from '../config/businesses'
 import { REGIMENES, USOS_CFDI, QUERY_KEYS, STALE_TIMES, SHEET_NAMES } from '../api/config'
 import { fetchClientes, fetchSolicitudes } from '../api/sheets'
-import { batchAppend, sendConfirmation } from '../api/appscript'
+import { batchAppend, sendConfirmation, timbrarFactura } from '../api/appscript'
+import type { TimbradoResult } from '../api/appscript'
 import { useQueryClient, useQuery } from '@tanstack/react-query'
 import { generateId } from '../utils/ids'
 import { now, fmt$ } from '../utils/dates'
@@ -114,6 +115,8 @@ export function LlevarPage({ data }: LlevarPageProps) {
   const [done,      setDone     ] = useState(false)
   const [savedSolId, setSavedSolId] = useState('')
   const [msgIdx,    setMsgIdx   ] = useState(() => Math.floor(Math.random() * SUCCESS_MESSAGES.length))
+  const [timbrado,  setTimbrado ] = useState<TimbradoResult | null>(null)
+  const [timbrando, setTimbrando] = useState(false)
   const retryRef = useRef<{ items: BatchItem[]; emailData: EmailData; solId: string } | null>(null)
 
   useEffect(() => {
@@ -221,11 +224,24 @@ export function LlevarPage({ data }: LlevarPageProps) {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.solicitudes })
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.clientes })
       setSavedSolId(solId)
+      setSending(false)
       setDone(true)
       try { navigator.vibrate?.([50, 30, 80]) } catch { /* */ }
+
+      // Intentar timbrado automático (no bloquea el éxito)
+      try {
+        setTimbrando(true)
+        const result = await timbrarFactura({
+          rfc, razonSocial: form.razonSocial, regimen: regimenStr, usoCfdi: cfdiStr,
+          email: form.email, codigoPostal: form.codigoPostal, telefono: form.telefono,
+          monto: data.monto, tipoPago: data.tipoPago, negocio: data.negocio,
+          folioPrefix: neg.folioPrefix, mesa: data.mesa, mesero: data.mesero,
+        })
+        if (result.success) setTimbrado(result)
+      } catch { /* fallback silencioso — despacho timbra manualmente */ }
+      finally { setTimbrando(false) }
     } catch {
       setSendError('No se pudo enviar tu solicitud. Verifica tu conexión a internet e intenta de nuevo.')
-    } finally {
       setSending(false)
     }
   }
@@ -253,6 +269,19 @@ export function LlevarPage({ data }: LlevarPageProps) {
     const id = savedSolId || retryRef.current?.solId || '—'
     const url = buildNotifyWaUrl(neg.waNumber, neg.name, id, form.rfc.toUpperCase(), data.monto, data.mesa, form.email)
     window.open(url, '_blank')
+  }
+
+  function downloadBase64(base64: string, filename: string, mime: string) {
+    const bin = atob(base64)
+    const bytes = new Uint8Array(bin.length)
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+    const blob = new Blob([bytes], { type: mime })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    a.click()
+    URL.revokeObjectURL(url)
   }
 
   // ── Loading ────────────────────────────────────────────────
@@ -341,19 +370,58 @@ export function LlevarPage({ data }: LlevarPageProps) {
           <img src={logo} alt={neg.name} className="h-24 w-auto object-contain drop-shadow-xl mx-auto" />
         </motion.div>
         <motion.div initial={{ scale: 0, rotate: -20 }} animate={{ scale: 1, rotate: 0 }}
-          transition={{ type: 'spring', damping: 16, delay: 0.15 }} className="text-6xl mb-4">✅</motion.div>
-        <AnimatePresence mode="wait">
-          <motion.p key={msgIdx}
-            initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.35 }}
-            className="text-lg font-bold text-success mb-4 leading-snug max-w-[280px] mx-auto">
-            {SUCCESS_MESSAGES[msgIdx]}
-          </motion.p>
-        </AnimatePresence>
-        <div className="bg-surface/60 border border-white/10 rounded-xl px-4 py-3 backdrop-blur-sm mb-4">
-          <p className="text-white text-sm font-medium">{neg.labelMesa} {data.mesa} · {fmt$(data.monto)}</p>
-          <p className="text-muted text-xs mt-1">Se enviará confirmación a {form.email}</p>
-        </div>
+          transition={{ type: 'spring', damping: 16, delay: 0.15 }} className="text-6xl mb-4">
+          {timbrado ? '🧾' : '✅'}
+        </motion.div>
+
+        {/* Timbrando... */}
+        {timbrando && !timbrado && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mb-4">
+            <div className="w-6 h-6 border-2 border-accent border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+            <p className="text-accent text-sm font-medium">Timbrando tu factura...</p>
+            <p className="text-muted text-xs mt-1">Esto puede tomar unos segundos</p>
+          </motion.div>
+        )}
+
+        {/* Timbrado exitoso — descarga PDF/XML */}
+        {timbrado && (
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-4 w-full max-w-[300px]">
+            <p className="text-lg font-bold text-success mb-1">¡Factura timbrada!</p>
+            <p className="text-muted text-xs mb-3">UUID: {timbrado.uuid?.slice(0, 8)}...</p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => downloadBase64(timbrado.pdfBase64, `Factura_${timbrado.folioNumber}.pdf`, 'application/pdf')}
+                className="btn flex-1 bg-red-500/20 text-red-400 border border-red-500/30 text-sm font-bold">
+                📄 Descargar PDF
+              </button>
+              <button
+                onClick={() => downloadBase64(timbrado.xmlBase64, `Factura_${timbrado.folioNumber}.xml`, 'application/xml')}
+                className="btn flex-1 bg-blue-500/20 text-blue-400 border border-blue-500/30 text-sm font-bold">
+                📋 Descargar XML
+              </button>
+            </div>
+            <p className="text-muted text-xs mt-2">También se envió a {form.email}</p>
+          </motion.div>
+        )}
+
+        {/* Mensaje de éxito rotativo (solo si no timbró) */}
+        {!timbrado && !timbrando && (
+          <>
+            <AnimatePresence mode="wait">
+              <motion.p key={msgIdx}
+                initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.35 }}
+                className="text-lg font-bold text-success mb-4 leading-snug max-w-[280px] mx-auto">
+                {SUCCESS_MESSAGES[msgIdx]}
+              </motion.p>
+            </AnimatePresence>
+            <div className="bg-surface/60 border border-white/10 rounded-xl px-4 py-3 backdrop-blur-sm mb-4">
+              <p className="text-white text-sm font-medium">{neg.labelMesa} {data.mesa} · {fmt$(data.monto)}</p>
+              <p className="text-muted text-xs mt-1">Se enviará confirmación a {form.email}</p>
+            </div>
+          </>
+        )}
+
         {neg.waNumber && (
           <>
             <motion.button initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
