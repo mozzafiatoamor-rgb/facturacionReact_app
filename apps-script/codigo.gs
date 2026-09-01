@@ -74,12 +74,7 @@ function doPost(e) {
         sheet.getRange(lastRow + 1, 1, normalized.length, numCols).setValues(normalized);
         totalRows += normalized.length;
       }
-      // Si viene emailData, enviar el correo en la misma llamada → 1 sola llamada HTTP
-      var emailSent = false;
-      if (data.emailData && data.emailData.email) {
-        try { enviarEmailConfirmacion(data.emailData); emailSent = true; } catch(emailErr) { /* no fallar toda la op por el email */ }
-      }
-      result = { success: true, rowsAdded: totalRows, emailSent: emailSent };
+      result = { success: true, rowsAdded: totalRows };
 
     // ── append: escribe una sola fila en una hoja
     } else if (data.action === 'append') {
@@ -106,36 +101,17 @@ function doPost(e) {
       else {
         var rows = sheet.getRange(2, 1, lastRow - 1, 14).getValues();
         var found = false;
-        var emailSent = false;
         for (var i = 0; i < rows.length; i++) {
           if (rows[i][0] === solId) {
             var rowNum = i + 2;
             sheet.getRange(rowNum, 12).setValue(data.status);       // Columna L = Status
             if (data.notas) sheet.getRange(rowNum, 14).setValue(data.notas); // Columna N = Notas
-            // Si el status es "Procesada" avisar al cliente por email
-            if (data.status === 'Procesada') {
-              var sol = {
-                id:          rows[i][0],
-                fecha:       rows[i][1],
-                hora:        rows[i][2],
-                mesa:        rows[i][3],
-                monto:       rows[i][4],
-                tipoPago:    rows[i][5],
-                rfc:         rows[i][6],
-                razonSocial: rows[i][7],
-                regimen:     rows[i][8],
-                usoCfdi:     rows[i][9],
-                email:       rows[i][10]
-              };
-              if (sol.email) {
-                try { enviarEmailFacturaEnviada(sol); emailSent = true; } catch(e) {}
-              }
-            }
+            // Email de factura ya se envía desde timbrarFactura_ con PDF/XML adjuntos
             found = true;
             break;
           }
         }
-        result = { success: true, found: found, emailSent: emailSent };
+        result = { success: true, found: found };
       }
 
     // ── updateCliente: actualiza datos de un cliente existente por RFC

@@ -229,20 +229,56 @@ function downloadInvoiceFile_(invoiceId, format) {
 }
 
 /**
- * Envía la factura por correo electrónico al cliente.
+ * Envía la factura por correo electrónico al cliente con PDF/XML adjuntos.
+ * CC a mozzafiatoamor@gmail.com para control interno.
  */
-function sendInvoiceEmail_(invoiceId) {
+function sendInvoiceEmailCustom_(invoiceId, data, pdfBase64, xmlBase64) {
   try {
-    UrlFetchApp.fetch(
-      FACTURAPI_BASE + '/invoices/' + invoiceId + '/email',
-      {
-        method: 'post',
-        headers: facturApiHeaders_(),
-        muteHttpExceptions: true,
-      }
-    );
+    var negocioName = data.negocio === 'casaregina' ? 'Casa Regina' : 'Mozzafiato';
+    var montoFmt = '$' + Number(data.monto).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+    var headerBg = data.negocio === 'casaregina' ? '#0C1F2B' : '#1a120e';
+    var accentColor = data.negocio === 'casaregina' ? '#C9A84C' : '#C45C2C';
+    var headerText = data.negocio === 'casaregina' ? '#EDE8DA' : '#f5ede8';
+
+    var htmlBody = [
+      '<div style="font-family:sans-serif;max-width:500px;margin:0 auto;background:#f9f9f9;border-radius:12px;overflow:hidden;">',
+      '  <div style="background:' + headerBg + ';padding:24px;text-align:center;">',
+      LOGO_URL ? '    <img src="' + LOGO_URL + '" alt="' + negocioName + '" style="max-height:70px;max-width:220px;width:auto;height:auto;object-fit:contain;display:block;margin:0 auto 10px;">' : '',
+      '    <div style="color:' + headerText + ';font-size:20px;font-weight:700;">' + negocioName + '</div>',
+      '    <div style="color:' + accentColor + ';font-size:13px;margin-top:4px;">Tu Factura Electrónica</div>',
+      '  </div>',
+      '  <div style="padding:24px;">',
+      '    <p style="color:#333;font-size:15px;">Hola <strong>' + data.razonSocial + '</strong>,</p>',
+      '    <p style="color:#555;font-size:14px;">Tu factura ha sido generada exitosamente. Encontrarás los archivos PDF y XML adjuntos a este correo.</p>',
+      '    <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:14px;">',
+      '      <tr style="background:#f0f0f0;"><td style="padding:8px 12px;font-weight:600;color:#555;width:40%;">RFC</td><td style="padding:8px 12px;color:#333;font-family:monospace;">' + data.rfc + '</td></tr>',
+      '      <tr><td style="padding:8px 12px;font-weight:600;color:#555;">Razón Social</td><td style="padding:8px 12px;color:#333;">' + data.razonSocial + '</td></tr>',
+      '      <tr style="background:#f0f0f0;"><td style="padding:8px 12px;font-weight:600;color:#555;">Monto</td><td style="padding:8px 12px;color:#1a120e;font-weight:700;font-size:16px;">' + montoFmt + '</td></tr>',
+      '    </table>',
+      '    <div style="background:#d4edda;border:1px solid #28a745;border-radius:8px;padding:12px;margin:16px 0;font-size:14px;color:#155724;text-align:center;">',
+      '      ✅ <strong>Factura timbrada exitosamente</strong>',
+      '    </div>',
+      '    <p style="color:#888;font-size:12px;">Este es un correo automático. Si tienes dudas, contacta a ' + negocioName + '.</p>',
+      '  </div>',
+      '  <div style="background:' + headerBg + ';padding:16px;text-align:center;">',
+      '    <div style="color:' + accentColor + ';font-size:12px;">' + negocioName + ' · Facturación Electrónica</div>',
+      '  </div>',
+      '</div>'
+    ].join('\n');
+
+    var pdfBlob = Utilities.newBlob(Utilities.base64Decode(pdfBase64), 'application/pdf', 'Factura_' + data.rfc + '.pdf');
+    var xmlBlob = Utilities.newBlob(Utilities.base64Decode(xmlBase64), 'application/xml', 'Factura_' + data.rfc + '.xml');
+
+    MailApp.sendEmail({
+      to: data.email,
+      cc: 'mozzafiatoamor@gmail.com',
+      subject: 'Tu factura electrónica — ' + negocioName,
+      htmlBody: htmlBody,
+      attachments: [pdfBlob, xmlBlob],
+      name: negocioName + ' Facturas',
+    });
   } catch (e) {
-    // No lanzar error si falla el email — la factura ya se timbró
     Logger.log('Error enviando email de factura: ' + e.message);
   }
 }
@@ -266,8 +302,8 @@ function timbrarFactura_(data) {
   var pdfBase64 = downloadInvoiceFile_(invoice.id, 'pdf');
   var xmlBase64 = downloadInvoiceFile_(invoice.id, 'xml');
 
-  // 4. Enviar por email (async, no bloquea)
-  sendInvoiceEmail_(invoice.id);
+  // 4. Enviar por email con PDF/XML adjuntos + CC a mozzafiatoamor
+  sendInvoiceEmailCustom_(invoice.id, data, pdfBase64, xmlBase64);
 
   return {
     invoiceId: invoice.id,
