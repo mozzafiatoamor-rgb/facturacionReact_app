@@ -142,7 +142,7 @@ export function LlevarPage({ data }: LlevarPageProps) {
     setForm({
       rfc: c.rfc, razonSocial: c.razonSocial, regimen: c.regimen,
       usoCfdi: c.usoCfdi, email: c.email, codigoPostal: c.codigoPostal,
-      telefono: c.telefono,
+      telefono: c.telefono, comentarios: '',
     })
   }
 
