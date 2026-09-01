@@ -158,6 +158,11 @@ function createInvoice_(customerId, data) {
     payload.series = data.folioPrefix;
   }
 
+  // Comentarios/observaciones del cliente
+  if (data.comentarios) {
+    payload.comments = data.comentarios;
+  }
+
   var response = UrlFetchApp.fetch(FACTURAPI_BASE + '/invoices', {
     method: 'post',
     headers: facturApiHeaders_(),

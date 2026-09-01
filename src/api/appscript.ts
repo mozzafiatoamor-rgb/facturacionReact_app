@@ -90,6 +90,7 @@ export interface TimbradoInput {
   folioPrefix?: string
   mesa?: string
   mesero?: string
+  comentarios?: string
 }
 
 export interface TimbradoResult {

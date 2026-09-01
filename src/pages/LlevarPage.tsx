@@ -107,7 +107,7 @@ export function LlevarPage({ data }: LlevarPageProps) {
   const [isNew,     setIsNew    ] = useState(false)
   const [form, setForm] = useState({
     rfc: '', razonSocial: '', regimen: '626', usoCfdi: 'G03',
-    email: '', codigoPostal: '', telefono: '',
+    email: '', codigoPostal: '', telefono: '', comentarios: '',
   })
   const [errors,    setErrors   ] = useState<Record<string, string>>({})
   const [sending,   setSending  ] = useState(false)
@@ -238,6 +238,7 @@ export function LlevarPage({ data }: LlevarPageProps) {
           email: form.email, codigoPostal: form.codigoPostal, telefono: form.telefono,
           monto: data.monto, tipoPago: data.tipoPago, negocio: data.negocio,
           folioPrefix: neg.folioPrefix, mesa: data.mesa, mesero: data.mesero,
+          comentarios: form.comentarios || undefined,
         })
         if (result.success) {
           setTimbrado(result)
@@ -590,6 +591,11 @@ export function LlevarPage({ data }: LlevarPageProps) {
                       type="tel" inputMode="tel" placeholder="81 0000 0000" className="input" />
                   </Field>
                 </div>
+                <Field label="Comentarios / Observaciones (opcional)" error={errors.comentarios}>
+                  <textarea value={form.comentarios} onChange={(e) => set('comentarios', e.target.value)}
+                    placeholder="Ej: Núm. de orden, departamento, notas especiales..."
+                    rows={2} className="input resize-none" />
+                </Field>
                 <button type="submit" disabled={sending}
                   className="btn btn-primary w-full mt-2 disabled:opacity-50">
                   {sending ? 'Enviando... (puede tardar unos segundos)' : '🧾 Solicitar Factura'}
