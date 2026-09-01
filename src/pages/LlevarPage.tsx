@@ -117,6 +117,7 @@ export function LlevarPage({ data }: LlevarPageProps) {
   const [msgIdx,    setMsgIdx   ] = useState(() => Math.floor(Math.random() * SUCCESS_MESSAGES.length))
   const [timbrado,  setTimbrado ] = useState<TimbradoResult | null>(null)
   const [timbrando, setTimbrando] = useState(false)
+  const [timbradoError, setTimbradoError] = useState('')
   const retryRef = useRef<{ items: BatchItem[]; emailData: EmailData; solId: string } | null>(null)
 
   useEffect(() => {
@@ -231,6 +232,7 @@ export function LlevarPage({ data }: LlevarPageProps) {
       // Intentar timbrado automático (no bloquea el éxito)
       try {
         setTimbrando(true)
+        setTimbradoError('')
         const result = await timbrarFactura({
           rfc, razonSocial: form.razonSocial, regimen: regimenStr, usoCfdi: cfdiStr,
           email: form.email, codigoPostal: form.codigoPostal, telefono: form.telefono,
@@ -238,8 +240,10 @@ export function LlevarPage({ data }: LlevarPageProps) {
           folioPrefix: neg.folioPrefix, mesa: data.mesa, mesero: data.mesero,
         })
         if (result.success) setTimbrado(result)
-      } catch { /* fallback silencioso — despacho timbra manualmente */ }
-      finally { setTimbrando(false) }
+        else setTimbradoError(result.error || 'Error desconocido al timbrar')
+      } catch (err) {
+        setTimbradoError(err instanceof Error ? err.message : 'Error de conexión al timbrar')
+      } finally { setTimbrando(false) }
     } catch {
       setSendError('No se pudo enviar tu solicitud. Verifica tu conexión a internet e intenta de nuevo.')
       setSending(false)
@@ -401,6 +405,16 @@ export function LlevarPage({ data }: LlevarPageProps) {
               </button>
             </div>
             <p className="text-muted text-xs mt-2">También se envió a {form.email}</p>
+          </motion.div>
+        )}
+
+        {/* Error de timbrado (visible para debug) */}
+        {timbradoError && !timbrado && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+            className="bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3 mb-4 w-full max-w-[300px]">
+            <p className="text-red-400 text-xs font-medium mb-1">No se pudo timbrar automáticamente:</p>
+            <p className="text-red-300 text-xs break-all">{timbradoError}</p>
+            <p className="text-muted text-xs mt-2">Tu solicitud fue guardada. El despacho la procesará manualmente.</p>
           </motion.div>
         )}
 
