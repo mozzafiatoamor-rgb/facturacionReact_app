@@ -56,44 +56,44 @@ export default function App() {
   const [cliente, setCliente] = useState<ClienteFormData | null>(null)
   const [isNew,   setIsNew  ] = useState(false)
 
-  // ── Detectar links especiales en URL ──────────────────────
-  const [llevarData, setLlevarData] = useState<LlevarData | null>(null)
-  const [llevarExpired, setLlevarExpired] = useState(false)
-  const [isDespacho, setIsDespacho] = useState(false)
-
-  useEffect(() => {
-    // Primero: ¿es link de despacho contable? (o ya se marcó como despacho antes)
+  // ── Detectar links especiales en URL (síncrono, antes del primer render) ──
+  const [initState] = useState(() => {
+    // Despacho contable
     const despachoParam = getDespachoParam()
     if (despachoParam) {
       const cfg = decodeDespacho(despachoParam)
       if (cfg) {
         injectConfig(cfg)
         localStorage.setItem('_mzf_despacho', 'true')
-        setIsDespacho(true)
         clearSpecialParams()
-        return
+        return { llevar: null as LlevarData | null, expired: false, despacho: true }
       }
     }
-    // Si ya visitó como despacho antes (app instalada o bookmark)
     if (localStorage.getItem('_mzf_despacho') === 'true') {
-      setIsDespacho(true)
-      return
+      return { llevar: null as LlevarData | null, expired: false, despacho: true }
     }
 
-    // Segundo: ¿es link "para llevar" de cliente?
+    // Link "para llevar" de cliente
     const param = getLlevarParam()
-    if (!param) return
-    const decoded = decodeLlevar(param)
-    if (!decoded) return
-    if (isExpired(decoded)) {
-      setLlevarExpired(true)
-      clearSpecialParams()
-    } else {
-      if (decoded.config) injectConfig(decoded.config)
-      setLlevarData(decoded)
-      clearSpecialParams()
+    if (param) {
+      const decoded = decodeLlevar(param)
+      if (decoded) {
+        if (isExpired(decoded)) {
+          clearSpecialParams()
+          return { llevar: null as LlevarData | null, expired: true, despacho: false }
+        }
+        if (decoded.config) injectConfig(decoded.config)
+        clearSpecialParams()
+        return { llevar: decoded, expired: false, despacho: false }
+      }
     }
-  }, [])
+
+    return { llevar: null as LlevarData | null, expired: false, despacho: false }
+  })
+
+  const [llevarData, setLlevarData] = useState<LlevarData | null>(initState.llevar)
+  const [llevarExpired] = useState(initState.expired)
+  const [isDespacho] = useState(initState.despacho)
 
   // Sync offline en background
   useOfflineSync()

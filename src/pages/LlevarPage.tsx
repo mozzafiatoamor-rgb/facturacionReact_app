@@ -115,6 +115,7 @@ export function LlevarPage({ data }: LlevarPageProps) {
   const [done,      setDone     ] = useState(false)
   const [savedSolId, setSavedSolId] = useState('')
   const [msgIdx,    setMsgIdx   ] = useState(() => Math.floor(Math.random() * SUCCESS_MESSAGES.length))
+  const [confirming, setConfirming] = useState(false)
   const [timbrado,  setTimbrado ] = useState<TimbradoResult | null>(null)
   const [timbrando, setTimbrando] = useState(false)
   const [timbradoError, setTimbradoError] = useState('')
@@ -170,9 +171,13 @@ export function LlevarPage({ data }: LlevarPageProps) {
     return Object.keys(e).length === 0
   }
 
-  async function handleSubmit(ev: React.FormEvent) {
+  function handlePreSubmit(ev: React.FormEvent) {
     ev.preventDefault()
     if (!validate()) return
+    setConfirming(true)
+  }
+
+  async function handleConfirmSubmit() {
     setSending(true)
     setSendError('')
 
@@ -537,7 +542,7 @@ export function LlevarPage({ data }: LlevarPageProps) {
             </motion.div>
           )}
 
-          {(selected || isNew) && (
+          {(selected || isNew) && !confirming && (
             <motion.div key="form" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
               <div className="flex items-center justify-between mb-4">
                 <div>
@@ -548,7 +553,7 @@ export function LlevarPage({ data }: LlevarPageProps) {
                   className="text-xs" style={{ color: t.accent }}>← Cambiar RFC</button>
               </div>
 
-              <form onSubmit={handleSubmit} className="bg-surface border border-white/10 rounded-xl p-4 space-y-3">
+              <form onSubmit={handlePreSubmit} className="bg-surface border border-white/10 rounded-xl p-4 space-y-3">
                 <Field label="RFC" error={errors.rfc}>
                   <input value={form.rfc} onChange={(e) => set('rfc', e.target.value)}
                     placeholder="XAXX010101000" autoCapitalize="characters" spellCheck={false} className="input" />
@@ -588,11 +593,80 @@ export function LlevarPage({ data }: LlevarPageProps) {
                     placeholder="Ej: Núm. de orden, departamento, notas especiales..."
                     rows={2} className="input resize-none" />
                 </Field>
-                <button type="submit" disabled={sending}
-                  className="btn w-full mt-2 text-white disabled:opacity-50" style={{ background: t.accent }}>
-                  {sending ? 'Generando... (puede tardar unos segundos)' : '🧾 Generar Factura'}
+                <button type="submit"
+                  className="btn w-full mt-2 text-white" style={{ background: t.accent }}>
+                  Revisar y Generar →
                 </button>
               </form>
+            </motion.div>
+          )}
+
+          {confirming && (
+            <motion.div key="confirm" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="text-lg font-bold text-white">Confirmar Datos</h2>
+                  <p className="text-xs text-muted mt-0.5">Revisa que todo esté correcto antes de facturar</p>
+                </div>
+                <button onClick={() => setConfirming(false)}
+                  className="text-xs" style={{ color: t.accent }}>← Editar datos</button>
+              </div>
+
+              <div className="rounded-xl p-4 mb-4" style={{ background: '#fbbf241A', border: '1px solid #fbbf244D' }}>
+                <p className="text-sm font-medium" style={{ color: '#fbbf24' }}>
+                  Verifica tus datos antes de generar la factura. Una vez timbrada no se puede modificar.
+                </p>
+              </div>
+
+              <div className="bg-surface border border-white/10 rounded-xl p-4 space-y-3 mb-4">
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <p className="text-xs text-muted">RFC</p>
+                    <p className="text-white font-bold">{form.rfc.toUpperCase()}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted">Monto</p>
+                    <p className="text-white font-bold">{fmt$(data.monto)}</p>
+                  </div>
+                  <div className="col-span-2">
+                    <p className="text-xs text-muted">Razón Social</p>
+                    <p className="text-white font-medium">{form.razonSocial}</p>
+                  </div>
+                  <div className="col-span-2">
+                    <p className="text-xs text-muted">Régimen Fiscal</p>
+                    <p className="text-white text-sm">{fullRegimen(form.regimen)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted">Uso CFDI</p>
+                    <p className="text-white text-sm">{fullUsoCfdi(form.usoCfdi)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted">C.P.</p>
+                    <p className="text-white">{form.codigoPostal || '—'}</p>
+                  </div>
+                  <div className="col-span-2">
+                    <p className="text-xs text-muted">Email</p>
+                    <p className="text-white">{form.email}</p>
+                  </div>
+                  {form.comentarios && (
+                    <div className="col-span-2">
+                      <p className="text-xs text-muted">Comentarios</p>
+                      <p className="text-white text-sm">{form.comentarios}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-3">
+                <button onClick={handleConfirmSubmit} disabled={sending}
+                  className="btn w-full text-white font-bold disabled:opacity-50" style={{ background: t.accent }}>
+                  {sending ? 'Generando factura...' : '🧾 Confirmar y Generar Factura'}
+                </button>
+                <button onClick={() => setConfirming(false)} disabled={sending}
+                  className="btn w-full bg-surface2 border border-white/10 text-muted text-sm">
+                  ← Regresar a editar
+                </button>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
