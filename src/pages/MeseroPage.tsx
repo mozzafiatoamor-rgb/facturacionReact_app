@@ -15,26 +15,24 @@ import { NEGOCIO_LIST, getNegocio } from '../config/businesses'
 import { getLogo } from '../assets/logos'
 import type { CurrentOrder } from '../api/types'
 
-const STEPS = ['Negocio', 'Mesa', 'Cliente', 'Confirmar', 'Listo']
+const STEPS = ['Negocio', 'Datos', 'Enviar']
 
 interface MeseroPageProps {
   initial?:    Partial<CurrentOrder>
   onNext:      (order: CurrentOrder) => void
+  onGenerarFactura: (order: CurrentOrder) => void
   onBack:      () => void
   userName:    string
 }
 
-export function MeseroPage({ initial, onNext, onBack, userName }: MeseroPageProps) {
+export function MeseroPage({ initial, onNext, onGenerarFactura, onBack, userName }: MeseroPageProps) {
   const { toast } = useToast()
   const [negocio,  setNegocio ] = useState(initial?.negocio  ?? '')
   const [mesa,     setMesa    ] = useState(initial?.mesa     ?? '')
   const [monto,    setMonto   ] = useState(initial?.monto    ?? '')
   const [tipoPago, setTipoPago] = useState(initial?.tipoPago ?? '')
   const [notas,    setNotas   ] = useState(initial?.notas    ?? '')
-
-  // Estado para el flujo "para llevar"
-  const [showLlevar, setShowLlevar] = useState(false)
-  const [whatsapp,   setWhatsapp  ] = useState('')
+  const [whatsapp, setWhatsapp] = useState('')
 
   function validate(): boolean {
     if (!negocio) { toast('Selecciona el negocio', 'error'); return false }
@@ -44,17 +42,8 @@ export function MeseroPage({ initial, onNext, onBack, userName }: MeseroPageProp
     return true
   }
 
-  function handleContinuar() {
-    if (!validate()) return
-    onNext({ mesa: mesa.trim(), monto, tipoPago, notas: notas.trim(), mesero: userName, negocio })
-  }
-
-  function handleLlevar() {
-    if (!validate()) return
-    setShowLlevar(true)
-  }
-
   function handleEnviarWhatsApp() {
+    if (!validate()) return
     const num = whatsapp.replace(/\D/g, '')
     if (num.length < 10) {
       toast('Ingresa un número válido de 10 dígitos', 'error')
@@ -75,6 +64,11 @@ export function MeseroPage({ initial, onNext, onBack, userName }: MeseroPageProp
     window.open(waUrl, '_blank')
     toast('Link enviado por WhatsApp')
     setTimeout(() => onBack(), 1500)
+  }
+
+  function handleGenerarFactura() {
+    if (!validate()) return
+    onGenerarFactura({ mesa: mesa.trim(), monto, tipoPago, notas: notas.trim(), mesero: userName, negocio })
   }
 
   const neg = negocio ? getNegocio(negocio) : null
@@ -218,70 +212,46 @@ export function MeseroPage({ initial, onNext, onBack, userName }: MeseroPageProp
                   />
                 </div>
 
+                {/* WhatsApp del cliente */}
+                <div className="mb-4">
+                  <label className="block text-xs text-muted font-medium mb-1.5">
+                    WhatsApp del cliente
+                  </label>
+                  <input
+                    value={whatsapp}
+                    onChange={(e) => setWhatsapp(e.target.value)}
+                    type="tel"
+                    inputMode="tel"
+                    placeholder="81 1234 5678"
+                    className="input"
+                    autoComplete="tel"
+                  />
+                </div>
+
                 {/* Botones de acción */}
                 <div className="flex flex-col gap-3">
-                  <button onClick={handleContinuar} className="btn btn-primary w-full text-base">
-                    Pasar a Cliente →
-                  </button>
                   <button
-                    onClick={handleLlevar}
+                    onClick={handleEnviarWhatsApp}
+                    className="btn w-full text-sm font-bold"
+                    style={{ background: '#25D366', color: '#fff' }}
+                  >
+                    Enviar al cliente
+                  </button>
+
+                  <div className="relative flex items-center my-1">
+                    <div className="flex-1 border-t border-white/10" />
+                    <span className="px-3 text-xs text-muted">o</span>
+                    <div className="flex-1 border-t border-white/10" />
+                  </div>
+
+                  <button
+                    onClick={handleGenerarFactura}
                     className="btn w-full bg-surface2 border border-white/10 text-white text-sm"
                   >
-                    📲 Enviar link al cliente (para llevar)
+                    Generar factura para el cliente
                   </button>
                 </div>
               </motion.div>
-
-              {/* Panel WhatsApp */}
-              <AnimatePresence>
-                {showLlevar && (
-                  <motion.div
-                    key="llevar-panel"
-                    initial={{ opacity: 0, y: 16 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 16 }}
-                    transition={{ duration: 0.2 }}
-                    className="bg-surface border border-accent/30 rounded-xl p-5 mt-4"
-                  >
-                    <div className="text-center mb-3">
-                      <span className="text-3xl">📲</span>
-                      <p className="text-sm font-bold text-white mt-1">Enviar link por WhatsApp</p>
-                      <p className="text-xs text-muted mt-1">
-                        El cliente recibirá un formulario con el monto de ${monto} prellenado
-                      </p>
-                    </div>
-
-                    <label className="block text-xs text-muted font-medium mb-1.5">
-                      Número de WhatsApp del cliente
-                    </label>
-                    <input
-                      value={whatsapp}
-                      onChange={(e) => setWhatsapp(e.target.value)}
-                      type="tel"
-                      inputMode="tel"
-                      placeholder="81 1234 5678"
-                      className="input mb-4"
-                      autoComplete="tel"
-                    />
-
-                    <div className="flex gap-3">
-                      <button
-                        onClick={() => setShowLlevar(false)}
-                        className="btn flex-1 bg-surface2 border border-white/10 text-muted text-sm"
-                      >
-                        Cancelar
-                      </button>
-                      <button
-                        onClick={handleEnviarWhatsApp}
-                        className="btn flex-1 text-sm font-bold"
-                        style={{ background: '#25D366', color: '#fff' }}
-                      >
-                        Enviar por WhatsApp
-                      </button>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
             </motion.div>
           )}
         </AnimatePresence>

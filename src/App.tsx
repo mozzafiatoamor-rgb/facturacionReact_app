@@ -119,6 +119,21 @@ export default function App() {
     setStep('cliente')
   }
 
+  // ── Flujo rápido: mesero genera factura directamente ──
+  function handleGenerarFactura(o: CurrentOrder) {
+    const { date, time } = { date: new Date().toLocaleDateString('es-MX'), time: new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }) }
+    setLlevarData({
+      mesa: o.mesa,
+      monto: o.monto,
+      tipoPago: o.tipoPago,
+      mesero: o.mesero,
+      fecha: date,
+      hora: time,
+      negocio: o.negocio,
+      exp: Date.now() + 5 * 24 * 60 * 60 * 1000,
+    })
+  }
+
   function handleClienteDone(c: ClienteFormData, isNewClient: boolean) {
     setCliente(c)
     setIsNew(isNewClient)
@@ -220,6 +235,7 @@ export default function App() {
               <MeseroPage
                 initial={order ?? undefined}
                 onNext={handleOrderDone}
+                onGenerarFactura={handleGenerarFactura}
                 onBack={() => setStep('home')}
                 userName={user.nombre}
               />

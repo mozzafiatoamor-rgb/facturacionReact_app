@@ -16,7 +16,6 @@ import {
   batchAppend,
   updateStatus,
   updateCliente,
-  sendConfirmation,
 } from '../api/appscript'
 import { QUERY_KEYS } from '../api/config'
 import type { PendingOperation } from '../api/types'
@@ -35,16 +34,13 @@ export function useOfflineSync() {
           if (op.sheet && op.values) await appendRow(op.sheet, op.values)
           break
         case 'batchAppend':
-          if (op.items) await batchAppend(op.items, op.emailData)
+          if (op.items) await batchAppend(op.items)
           break
         case 'updateStatus':
           if (op.solId && op.status != null) await updateStatus(op.solId, op.status, op.notas)
           break
         case 'updateCliente':
           if (op.rfc && op.data) await updateCliente(op.rfc, op.data)
-          break
-        case 'sendConfirmation':
-          if (op.solId) await sendConfirmation(op.solId, op.emailData)
           break
       }
       return true

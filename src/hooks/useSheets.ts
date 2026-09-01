@@ -10,13 +10,13 @@ import {
   useIsFetching,
 } from '@tanstack/react-query'
 import { fetchClientes, fetchSolicitudes, fetchUsuarios, fetchBitacora } from '../api/sheets'
-import { updateStatus, updateCliente, sendConfirmation as apiSendConfirmation, batchAppend } from '../api/appscript'
+import { updateStatus, updateCliente, batchAppend } from '../api/appscript'
 import { enqueueOp } from '../store/db'
 import { QUERY_KEYS, STALE_TIMES } from '../api/config'
 import { now } from '../utils/dates'
 import { generateId } from '../utils/ids'
 import { getNegocio } from '../config/businesses'
-import type { Solicitud, Cliente, BatchItem, EmailData } from '../api/types'
+import type { Solicitud, Cliente, BatchItem } from '../api/types'
 import { SHEET_NAMES } from '../api/config'
 
 // ── Lecturas ───────────────────────────────────────────────
@@ -153,33 +153,14 @@ export function useNuevaSolicitud() {
         rows: [[date, time, input.mesero, 'Nueva Solicitud', `${input.rfc} Mesa ${input.mesa}`, 'solicitud']],
       })
 
-      // Datos para el email de confirmación (Apps Script lo usa para enviar correo)
-      const emailData: EmailData = {
-        id:          solId,
-        fecha:       date,
-        hora:        time,
-        mesa:        input.mesa,
-        monto:       input.monto,
-        tipoPago:    input.tipoPago,
-        rfc:         input.rfc,
-        razonSocial: input.razonSocial,
-        regimen:     regimenStr,
-        usoCfdi:     cfdiStr,
-        email:       input.email,
-        status:      'Pendiente',
-        mesero:      input.mesero,
-      }
-
       // Intentar enviar; si falla, encolar para offline
+      // Nota: no enviamos emailData — Facturapi ya manda la factura por correo
       try {
-        await batchAppend(items, emailData)
-        // Fallback: enviar email por separado (por si batchAppend no lo procesó)
-        try { await apiSendConfirmation(solId, emailData) } catch { /* silencioso */ }
+        await batchAppend(items)
       } catch {
         await enqueueOp({
           type:      'batchAppend',
           items,
-          emailData,
           createdAt: Date.now(),
           retries:   0,
         })
@@ -264,15 +245,3 @@ export function useUpdateCliente() {
   })
 }
 
-// ── Mutación: enviar confirmación por email ────────────────
-export function useSendConfirmation() {
-  return useMutation({
-    mutationFn: ({ solId }: { solId: string }) => apiSendConfirmation(solId),
-    onError: async (_err, vars) => {
-      await enqueueOp({
-        type: 'sendConfirmation', solId: vars.solId,
-        createdAt: Date.now(), retries: 0,
-      })
-    },
-  })
-}
