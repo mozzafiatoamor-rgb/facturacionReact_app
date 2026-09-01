@@ -105,7 +105,8 @@ export function MeseroPage({ initial, onGenerarFactura, onBack, userName }: Mese
                     key={n.id}
                     whileTap={{ scale: 0.97 }}
                     onClick={() => setNegocio(n.id)}
-                    className="bg-surface border-2 border-white/10 rounded-xl p-5 flex items-center gap-4 hover:border-accent/50 transition-colors"
+                    className="border-2 border-white/10 rounded-xl p-5 flex items-center gap-4 transition-colors"
+                    style={{ background: n.theme.headerBg, borderColor: `${n.theme.accent}30` }}
                   >
                     <img
                       src={getLogo(n.logoKey)}
@@ -113,10 +114,10 @@ export function MeseroPage({ initial, onGenerarFactura, onBack, userName }: Mese
                       className="h-14 w-14 object-contain rounded-lg"
                     />
                     <div className="text-left flex-1">
-                      <p className="text-lg font-bold text-white">{n.name}</p>
-                      <p className="text-xs text-muted mt-0.5">{n.emoji} Solicitar factura</p>
+                      <p className="text-lg font-bold" style={{ color: n.theme.headerText }}>{n.name}</p>
+                      <p className="text-xs mt-0.5" style={{ color: n.theme.accent }}>Solicitar factura</p>
                     </div>
-                    <span className="text-2xl text-muted">→</span>
+                    <span className="text-2xl" style={{ color: n.theme.accent }}>→</span>
                   </motion.button>
                 ))}
               </div>

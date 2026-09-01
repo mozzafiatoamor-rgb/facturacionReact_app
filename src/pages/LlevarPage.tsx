@@ -285,12 +285,14 @@ export function LlevarPage({ data }: LlevarPageProps) {
     URL.revokeObjectURL(url)
   }
 
+  const t = neg.theme
+
   // ── Loading ────────────────────────────────────────────────
   if (loadingSols) {
     return (
       <div className="h-dvh bg-bg flex flex-col items-center justify-center px-6">
         <img src={logo} alt={neg.name} className="h-16 w-auto object-contain mb-4" />
-        <div className="w-6 h-6 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+        <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: t.accent, borderTopColor: 'transparent' }} />
         <p className="text-muted text-sm mt-3">Cargando...</p>
       </div>
     )
@@ -301,11 +303,11 @@ export function LlevarPage({ data }: LlevarPageProps) {
     const cfg = STATUS_CONFIG[existing.status] ?? STATUS_CONFIG.Pendiente
     return (
       <div className="h-dvh bg-bg flex flex-col overflow-hidden">
-        <header className="bg-surface border-b border-white/10 px-4 py-3 flex items-center gap-3">
+        <header className="border-b border-white/10 px-4 py-3 flex items-center gap-3" style={{ background: t.headerBg }}>
           <img src={logo} alt={neg.name} className="h-7 w-auto object-contain flex-shrink-0" />
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-white truncate">Estatus de Factura</p>
-            <p className="text-xs text-muted truncate">{neg.name}</p>
+            <p className="text-sm font-semibold truncate" style={{ color: t.headerText }}>Estatus de Factura</p>
+            <p className="text-xs truncate" style={{ color: `${t.accent}99` }}>{neg.name}</p>
           </div>
         </header>
 
@@ -324,7 +326,7 @@ export function LlevarPage({ data }: LlevarPageProps) {
 
           <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
             className="bg-surface border border-white/10 rounded-xl p-4 space-y-3">
-            <p className="text-xs text-accent font-semibold uppercase tracking-wider">Detalles</p>
+            <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: t.accent }}>Detalles</p>
             <div className="grid grid-cols-2 gap-3 text-sm">
               <Detail label={neg.labelMesa} value={existing.mesa} />
               <Detail label="Monto" value={fmt$(existing.monto)} />
@@ -361,7 +363,7 @@ export function LlevarPage({ data }: LlevarPageProps) {
     return (
       <div className="h-dvh bg-bg flex flex-col items-center justify-center px-6 text-center overflow-hidden relative">
         {[...Array(6)].map((_, i) => (
-          <motion.div key={i} className="absolute w-2 h-2 rounded-full bg-accent/20"
+          <motion.div key={i} className="absolute w-2 h-2 rounded-full" style={{ background: `${t.accent}33` }}
             initial={{ opacity: 0, y: 100, x: (i - 3) * 60 }}
             animate={{ opacity: [0, 0.6, 0], y: [100, -200], x: (i - 3) * 60 + Math.sin(i) * 30 }}
             transition={{ duration: 3, repeat: Infinity, delay: i * 0.5, ease: 'easeOut' }}
@@ -378,8 +380,8 @@ export function LlevarPage({ data }: LlevarPageProps) {
         {/* Timbrando... */}
         {timbrando && !timbrado && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mb-4">
-            <div className="w-6 h-6 border-2 border-accent border-t-transparent rounded-full animate-spin mx-auto mb-2" />
-            <p className="text-accent text-sm font-medium">Timbrando tu factura...</p>
+            <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin mx-auto mb-2" style={{ borderColor: t.accent, borderTopColor: 'transparent' }} />
+            <p className="text-sm font-medium" style={{ color: t.accent }}>Timbrando tu factura...</p>
             <p className="text-muted text-xs mt-1">Esto puede tomar unos segundos</p>
           </motion.div>
         )}
@@ -452,12 +454,12 @@ export function LlevarPage({ data }: LlevarPageProps) {
 
   // ── FORMULARIO ─────────────────────────────────────────────
   return (
-    <div className="h-dvh bg-bg flex flex-col overflow-hidden">
-      <header className="bg-surface border-b border-white/10 px-4 py-3 flex items-center gap-3">
+    <div className="h-dvh bg-bg flex flex-col overflow-hidden" style={{ '--neg-accent': t.accent } as React.CSSProperties}>
+      <header className="border-b border-white/10 px-4 py-3 flex items-center gap-3" style={{ background: t.headerBg }}>
         <img src={logo} alt={neg.name} className="h-7 w-auto object-contain flex-shrink-0" />
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-white truncate">Solicitar Factura</p>
-          <p className="text-xs text-muted truncate">{neg.name}</p>
+          <p className="text-sm font-semibold truncate" style={{ color: t.headerText }}>Generar Factura</p>
+          <p className="text-xs truncate" style={{ color: `${t.accent}99` }}>{neg.name}</p>
         </div>
       </header>
 
@@ -470,8 +472,8 @@ export function LlevarPage({ data }: LlevarPageProps) {
         </motion.div>
 
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
-          className="bg-accent/10 border border-accent/30 rounded-xl p-4 mb-5">
-          <p className="text-xs text-accent font-semibold uppercase tracking-wider mb-2">Datos del pedido</p>
+          className="rounded-xl p-4 mb-5" style={{ background: t.accentLight, border: `1px solid ${t.accent}4D` }}>
+          <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: t.accent }}>Datos del pedido</p>
           <div className="grid grid-cols-2 gap-2 text-sm">
             <div><span className="text-muted">{neg.labelMesa}:</span> <span className="text-white font-bold">{data.mesa}</span></div>
             <div><span className="text-muted">Monto:</span> <span className="text-white font-bold">{fmt$(data.monto)}</span></div>
@@ -487,7 +489,7 @@ export function LlevarPage({ data }: LlevarPageProps) {
             <p className="text-red-400 text-sm font-medium mb-3">{sendError}</p>
             <div className="flex gap-2">
               <button onClick={handleRetry} disabled={sending}
-                className="btn flex-1 bg-accent text-white text-sm font-bold disabled:opacity-50">
+                className="btn flex-1 text-white text-sm font-bold disabled:opacity-50" style={{ background: t.accent }}>
                 {sending ? 'Reintentando...' : '🔄 Reintentar'}
               </button>
               {neg.waNumber && (
@@ -514,7 +516,7 @@ export function LlevarPage({ data }: LlevarPageProps) {
                   placeholder="Escribe tu RFC..." autoCapitalize="characters" spellCheck={false} className="input w-full" />
 
                 {suggestions.length > 0 && (
-                  <div className="border border-accent/30 rounded-lg mt-2 max-h-48 overflow-y-auto">
+                  <div className="rounded-lg mt-2 max-h-48 overflow-y-auto" style={{ border: `1px solid ${t.accent}4D` }}>
                     {suggestions.map((c) => (
                       <button key={c.id} type="button" onClick={() => pickCliente(c)}
                         className="w-full text-left px-3 py-2.5 border-b border-white/5 last:border-0 hover:bg-surface2">
@@ -543,7 +545,7 @@ export function LlevarPage({ data }: LlevarPageProps) {
                   <p className="text-xs text-muted mt-0.5">{isNew ? 'Nuevo cliente' : 'Confirma tus datos'}</p>
                 </div>
                 <button onClick={() => { setSelected(null); setIsNew(false); setRfcInput('') }}
-                  className="text-xs text-accent">← Cambiar RFC</button>
+                  className="text-xs" style={{ color: t.accent }}>← Cambiar RFC</button>
               </div>
 
               <form onSubmit={handleSubmit} className="bg-surface border border-white/10 rounded-xl p-4 space-y-3">
@@ -587,8 +589,8 @@ export function LlevarPage({ data }: LlevarPageProps) {
                     rows={2} className="input resize-none" />
                 </Field>
                 <button type="submit" disabled={sending}
-                  className="btn btn-primary w-full mt-2 disabled:opacity-50">
-                  {sending ? 'Enviando... (puede tardar unos segundos)' : '🧾 Solicitar Factura'}
+                  className="btn w-full mt-2 text-white disabled:opacity-50" style={{ background: t.accent }}>
+                  {sending ? 'Generando... (puede tardar unos segundos)' : '🧾 Generar Factura'}
                 </button>
               </form>
             </motion.div>

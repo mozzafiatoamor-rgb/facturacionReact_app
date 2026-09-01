@@ -37,7 +37,7 @@ body {
     appearance: none;
   }
   .input:focus {
-    @apply border-accent;
+    border-color: var(--neg-accent, #3b82f6);
   }
   .input select {
     @apply bg-surface2;
