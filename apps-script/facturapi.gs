@@ -103,10 +103,46 @@ function findOrCreateCustomer_(data) {
 /**
  * Crea y timbra una factura CFDI en Facturapi.
  */
+function isPersonaMoral_(rfc) {
+  // Persona moral: 12 caracteres. Persona física: 13 caracteres.
+  return rfc && rfc.replace(/\s/g, '').length === 12;
+}
+
 function createInvoice_(customerId, data) {
   var monto = parseFloat(data.monto);
   var negocio = data.negocio || 'mozzafiato';
   var usoCfdi = data.usoCfdi.split(' - ')[0].trim(); // solo el código: "G03"
+  var esHotel = (negocio === 'casaregina');
+  var esMoral = isPersonaMoral_(data.rfc);
+
+  // Impuestos federales
+  var taxes = [{ type: 'IVA', rate: 0.16 }];
+
+  // Retención ISR 10% solo para persona moral en hospedaje (Art. 106 LISR)
+  if (esHotel && esMoral) {
+    taxes.push({ type: 'ISR', rate: 0.10, withholding: true });
+  }
+
+  // Impuestos locales (ISH 4% Quintana Roo — solo hospedaje)
+  var localTaxes = [];
+  if (esHotel) {
+    localTaxes.push({ name: 'ISH', rate: 0.04 });
+  }
+
+  var item = {
+    quantity: 1,
+    product: {
+      description: mapProductDescription_(negocio),
+      product_key: mapProductKey_(negocio),
+      price: monto,
+      tax_included: true,
+      taxes: taxes,
+    },
+  };
+
+  if (localTaxes.length > 0) {
+    item.product.local_taxes = localTaxes;
+  }
 
   var payload = {
     type: 'I', // Ingreso
@@ -114,19 +150,7 @@ function createInvoice_(customerId, data) {
     payment_form: mapPaymentForm_(data.tipoPago),
     payment_method: 'PUE', // Pago en una sola exhibición
     use: usoCfdi,
-    items: [{
-      quantity: 1,
-      product: {
-        description: mapProductDescription_(negocio),
-        product_key: mapProductKey_(negocio),
-        price: monto,
-        tax_included: true,
-        taxes: [{
-          type: 'IVA',
-          rate: 0.16,
-        }],
-      },
-    }],
+    items: [item],
   };
 
   // Si hay folio/serie, agregarlo

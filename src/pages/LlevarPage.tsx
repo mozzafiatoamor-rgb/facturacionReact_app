@@ -10,7 +10,7 @@ import { getLogo } from '../assets/logos'
 import { getNegocio } from '../config/businesses'
 import { REGIMENES, USOS_CFDI, QUERY_KEYS, STALE_TIMES, SHEET_NAMES } from '../api/config'
 import { fetchClientes, fetchSolicitudes } from '../api/sheets'
-import { batchAppend, sendConfirmation, timbrarFactura } from '../api/appscript'
+import { batchAppend, sendConfirmation, timbrarFactura, updateStatus } from '../api/appscript'
 import type { TimbradoResult } from '../api/appscript'
 import { useQueryClient, useQuery } from '@tanstack/react-query'
 import { generateId } from '../utils/ids'
@@ -239,8 +239,14 @@ export function LlevarPage({ data }: LlevarPageProps) {
           monto: data.monto, tipoPago: data.tipoPago, negocio: data.negocio,
           folioPrefix: neg.folioPrefix, mesa: data.mesa, mesero: data.mesero,
         })
-        if (result.success) setTimbrado(result)
-        else setTimbradoError(result.error || 'Error desconocido al timbrar')
+        if (result.success) {
+          setTimbrado(result)
+          // Marcar como Procesada en Sheets
+          try { await updateStatus(solId, 'Procesada', `Timbrada auto — UUID: ${result.uuid}`) } catch { /* */ }
+          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.solicitudes })
+        } else {
+          setTimbradoError(result.error || 'Error desconocido al timbrar')
+        }
       } catch (err) {
         setTimbradoError(err instanceof Error ? err.message : 'Error de conexión al timbrar')
       } finally { setTimbrando(false) }
