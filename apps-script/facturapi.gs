@@ -120,13 +120,13 @@ function createInvoice_(customerId, data) {
 
   // Retención ISR 10% solo para persona moral en hospedaje (Art. 106 LISR)
   if (esHotel && esMoral) {
-    taxes.push({ type: 'ISR', rate: 0.10, withholding: true });
+    taxes.push({ type: 'ISR', rate: 0.10, factor: 'Tasa', withholding: true });
   }
 
   // Impuestos locales (ISH 4% Quintana Roo — solo hospedaje)
   var localTaxes = [];
   if (esHotel) {
-    localTaxes.push({ name: 'ISH', rate: 0.04 });
+    localTaxes.push({ type: 'ISH', rate: 0.04, withholding: false });
   }
 
   var item = {
