@@ -19,13 +19,12 @@ const STEPS = ['Negocio', 'Datos', 'Enviar']
 
 interface MeseroPageProps {
   initial?:    Partial<CurrentOrder>
-  onNext:      (order: CurrentOrder) => void
   onGenerarFactura: (order: CurrentOrder) => void
   onBack:      () => void
   userName:    string
 }
 
-export function MeseroPage({ initial, onNext, onGenerarFactura, onBack, userName }: MeseroPageProps) {
+export function MeseroPage({ initial, onGenerarFactura, onBack, userName }: MeseroPageProps) {
   const { toast } = useToast()
   const [negocio,  setNegocio ] = useState(initial?.negocio  ?? '')
   const [mesa,     setMesa    ] = useState(initial?.mesa     ?? '')

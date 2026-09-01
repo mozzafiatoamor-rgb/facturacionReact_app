@@ -234,7 +234,6 @@ export default function App() {
             {step === 'mesero' && user && (
               <MeseroPage
                 initial={order ?? undefined}
-                onNext={handleOrderDone}
                 onGenerarFactura={handleGenerarFactura}
                 onBack={() => setStep('home')}
                 userName={user.nombre}
