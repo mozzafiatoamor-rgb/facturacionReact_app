@@ -244,9 +244,8 @@ function sendInvoiceEmailCustom_(invoiceId, data, pdfBase64, xmlBase64) {
     var htmlBody = [
       '<div style="font-family:sans-serif;max-width:500px;margin:0 auto;background:#f9f9f9;border-radius:12px;overflow:hidden;">',
       '  <div style="background:' + headerBg + ';padding:24px;text-align:center;">',
-      getLogoUrl_(data.negocio) ? '    <img src="' + getLogoUrl_(data.negocio) + '" alt="' + negocioName + '" style="max-height:70px;max-width:220px;width:auto;height:auto;object-fit:contain;display:block;margin:0 auto 10px;">' : '',
-      '    <div style="color:' + headerText + ';font-size:20px;font-weight:700;">' + negocioName + '</div>',
-      '    <div style="color:' + accentColor + ';font-size:13px;margin-top:4px;">Tu Factura Electrónica</div>',
+      getLogoUrl_(data.negocio) ? '    <img src="' + getLogoUrl_(data.negocio) + '" alt="' + negocioName + '" style="max-height:100px;max-width:280px;width:auto;height:auto;object-fit:contain;display:block;margin:0 auto;">' : '',
+      '    <div style="color:' + accentColor + ';font-size:13px;margin-top:8px;">Factura Electrónica</div>',
       '  </div>',
       '  <div style="padding:24px;">',
       '    <p style="color:#333;font-size:15px;">Hola <strong>' + data.razonSocial + '</strong>,</p>',
@@ -325,15 +324,14 @@ function sendPreFactura_(data) {
   var subject = 'Pre-factura para revisión — ' + negocioName + ' · ' + (data.solId || '');
   var logoUrl = getLogoUrl_(data.negocio);
   var headerImg = logoUrl
-    ? '<img src="' + logoUrl + '" alt="' + negocioName + '" style="max-height:70px;max-width:220px;width:auto;height:auto;object-fit:contain;display:block;margin:0 auto 10px;">'
+    ? '<img src="' + logoUrl + '" alt="' + negocioName + '" style="max-height:100px;max-width:280px;width:auto;height:auto;object-fit:contain;display:block;margin:0 auto 10px;">'
     : '<div style="font-size:36px;margin-bottom:8px;">📄</div>';
 
   var htmlBody = [
     '<div style="font-family:sans-serif;max-width:500px;margin:0 auto;background:#f9f9f9;border-radius:12px;overflow:hidden;">',
     '  <div style="background:#1a120e;padding:24px;text-align:center;">',
     '    ' + headerImg,
-    '    <div style="color:#f5ede8;font-size:20px;font-weight:700;">' + negocioName + '</div>',
-    '    <div style="color:#9a8680;font-size:13px;margin-top:4px;">Pre-Factura — Revisión de Datos</div>',
+    '    <div style="color:#9a8680;font-size:13px;margin-top:8px;">Pre-Factura — Revisión de Datos</div>',
     '  </div>',
     '  <div style="padding:24px;">',
     '    <p style="color:#333;font-size:15px;">Hola <strong>' + (data.razonSocial || '') + '</strong>,</p>',

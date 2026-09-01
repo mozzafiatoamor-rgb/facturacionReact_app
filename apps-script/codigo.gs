@@ -265,14 +265,13 @@ function enviarEmailConfirmacion(sol) {
   var montoFmt = '$' + Number(sol.monto).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   var subject = 'Solicitud de Factura — ' + negocioName + ' · ' + sol.id;
   var headerImg = logoUrl
-    ? '<img src="' + logoUrl + '" alt="' + negocioName + '" style="max-height:70px;max-width:220px;width:auto;height:auto;object-fit:contain;display:block;margin:0 auto 10px;">'
+    ? '<img src="' + logoUrl + '" alt="' + negocioName + '" style="max-height:100px;max-width:280px;width:auto;height:auto;object-fit:contain;display:block;margin:0 auto 10px;">'
     : '<div style="font-size:36px;margin-bottom:8px;">🧾</div>';
   var htmlBody = [
     '<div style="font-family:sans-serif;max-width:500px;margin:0 auto;background:#f9f9f9;border-radius:12px;overflow:hidden;">',
     '  <div style="background:' + headerBg + ';padding:24px;text-align:center;">',
     '    ' + headerImg,
-    '    <div style="color:' + headerText + ';font-size:20px;font-weight:700;">' + negocioName + '</div>',
-    '    <div style="color:' + accentColor + ';font-size:13px;margin-top:4px;">Solicitud de Factura Recibida</div>',
+    '    <div style="color:' + accentColor + ';font-size:13px;margin-top:8px;">Solicitud de Factura Recibida</div>',
     '  </div>',
     '  <div style="padding:24px;">',
     '    <p style="color:#333;font-size:15px;">Hola <strong>' + sol.razonSocial + '</strong>,</p>',
@@ -318,14 +317,13 @@ function enviarEmailFacturaEnviada(sol) {
   var montoFmt = '$' + Number(sol.monto).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   var subject = 'Tu factura está lista — ' + negocioName + ' · ' + sol.id;
   var headerImg = logoUrl
-    ? '<img src="' + LOGO_URL + '" alt="Mozzafiato" style="max-height:70px;max-width:220px;width:auto;height:auto;object-fit:contain;display:block;margin:0 auto 10px;">'
+    ? '<img src="' + logoUrl + '" alt="' + negocioName + '" style="max-height:100px;max-width:280px;width:auto;height:auto;object-fit:contain;display:block;margin:0 auto 10px;">'
     : '<div style="font-size:36px;margin-bottom:8px;">✅</div>';
   var htmlBody = [
     '<div style="font-family:sans-serif;max-width:500px;margin:0 auto;background:#f9f9f9;border-radius:12px;overflow:hidden;">',
     '  <div style="background:' + headerBg + ';padding:24px;text-align:center;">',
     '    ' + headerImg,
-    '    <div style="color:' + headerText + ';font-size:20px;font-weight:700;">' + negocioName + '</div>',
-    '    <div style="color:' + accentColor + ';font-size:13px;margin-top:4px;">Tu Factura Ha Sido Generada</div>',
+    '    <div style="color:' + accentColor + ';font-size:13px;margin-top:8px;">Tu Factura Ha Sido Generada</div>',
     '  </div>',
     '  <div style="padding:24px;">',
     '    <p style="color:#333;font-size:15px;">Hola <strong>' + sol.razonSocial + '</strong>,</p>',
