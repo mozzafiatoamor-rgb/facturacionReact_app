@@ -191,6 +191,11 @@ function doPost(e) {
         xmlBase64: timbradoResult.xmlBase64,
       };
 
+    // ── sendPreFactura: envía email de pre-factura (sin timbrar) para revisión
+    } else if (data.action === 'sendPreFactura') {
+      sendPreFactura_(data);
+      result = { success: true, sent: true };
+
     } else {
       throw new Error('Acción desconocida: ' + data.action);
     }

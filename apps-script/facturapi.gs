@@ -249,3 +249,56 @@ function timbrarFactura_(data) {
     xmlBase64: xmlBase64,
   };
 }
+
+/**
+ * Envía un email de pre-factura (sin timbrar) al cliente para que revise los datos.
+ */
+function sendPreFactura_(data) {
+  var negocioName = data.negocioName || 'Mozzafiato';
+  var montoNum = parseFloat(data.monto) || 0;
+  var montoFmt = '$' + montoNum.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  var subject = 'Pre-factura para revisión — ' + negocioName + ' · ' + (data.solId || '');
+  var headerImg = LOGO_URL
+    ? '<img src="' + LOGO_URL + '" alt="' + negocioName + '" style="max-height:70px;max-width:220px;width:auto;height:auto;object-fit:contain;display:block;margin:0 auto 10px;">'
+    : '<div style="font-size:36px;margin-bottom:8px;">📄</div>';
+
+  var htmlBody = [
+    '<div style="font-family:sans-serif;max-width:500px;margin:0 auto;background:#f9f9f9;border-radius:12px;overflow:hidden;">',
+    '  <div style="background:#1a120e;padding:24px;text-align:center;">',
+    '    ' + headerImg,
+    '    <div style="color:#f5ede8;font-size:20px;font-weight:700;">' + negocioName + '</div>',
+    '    <div style="color:#9a8680;font-size:13px;margin-top:4px;">Pre-Factura — Revisión de Datos</div>',
+    '  </div>',
+    '  <div style="padding:24px;">',
+    '    <p style="color:#333;font-size:15px;">Hola <strong>' + (data.razonSocial || '') + '</strong>,</p>',
+    '    <p style="color:#555;font-size:14px;">Antes de timbrar tu factura, te enviamos los datos para que los revises. Si todo está correcto, responde este correo confirmando. Si hay algún error, indícanos qué corregir.</p>',
+    '    <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:14px;">',
+    '      <tr style="background:#f0f0f0;"><td style="padding:8px 12px;font-weight:600;color:#555;width:40%;">Folio</td><td style="padding:8px 12px;color:#333;">' + (data.solId || '—') + '</td></tr>',
+    '      <tr><td style="padding:8px 12px;font-weight:600;color:#555;">Fecha</td><td style="padding:8px 12px;color:#333;">' + (data.fecha || '') + ' ' + (data.hora || '') + '</td></tr>',
+    '      <tr style="background:#f0f0f0;"><td style="padding:8px 12px;font-weight:600;color:#555;">Monto</td><td style="padding:8px 12px;color:#1a120e;font-weight:700;font-size:16px;">' + montoFmt + '</td></tr>',
+    '      <tr><td style="padding:8px 12px;font-weight:600;color:#555;">Tipo de Pago</td><td style="padding:8px 12px;color:#333;">' + (data.tipoPago || '—') + '</td></tr>',
+    '      <tr style="background:#f0f0f0;"><td style="padding:8px 12px;font-weight:600;color:#555;">RFC</td><td style="padding:8px 12px;color:#333;font-family:monospace;">' + (data.rfc || '') + '</td></tr>',
+    '      <tr><td style="padding:8px 12px;font-weight:600;color:#555;">Razón Social</td><td style="padding:8px 12px;color:#333;">' + (data.razonSocial || '') + '</td></tr>',
+    '      <tr style="background:#f0f0f0;"><td style="padding:8px 12px;font-weight:600;color:#555;">Régimen Fiscal</td><td style="padding:8px 12px;color:#333;">' + (data.regimen || '') + '</td></tr>',
+    '      <tr><td style="padding:8px 12px;font-weight:600;color:#555;">Uso de CFDI</td><td style="padding:8px 12px;color:#333;">' + (data.usoCfdi || '') + '</td></tr>',
+    '      <tr style="background:#f0f0f0;"><td style="padding:8px 12px;font-weight:600;color:#555;">Código Postal</td><td style="padding:8px 12px;color:#333;">' + (data.codigoPostal || '—') + '</td></tr>',
+    '    </table>',
+    '    <div style="background:#e3f2fd;border:1px solid #42a5f5;border-radius:8px;padding:12px;margin:16px 0;font-size:13px;color:#1565c0;">',
+    '      📄 <strong>Esta NO es una factura timbrada.</strong> Es una pre-factura para que revises que los datos estén correctos antes de generar el CFDI.',
+    '    </div>',
+    '    <p style="color:#555;font-size:13px;">Responde a este correo con tu confirmación o correcciones.</p>',
+    '  </div>',
+    '  <div style="background:#1a120e;padding:16px;text-align:center;">',
+    '    <div style="color:#9a8680;font-size:12px;">' + negocioName + ' · Pre-factura ' + (data.solId || '') + ' · ' + (data.fecha || '') + '</div>',
+    '  </div>',
+    '</div>'
+  ].join('\n');
+
+  MailApp.sendEmail({
+    to: data.email,
+    subject: subject,
+    htmlBody: htmlBody,
+    name: negocioName + ' Facturas'
+  });
+}

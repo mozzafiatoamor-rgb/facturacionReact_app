@@ -8,7 +8,8 @@ import { useState, useMemo, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchSolicitudes, fetchClientes } from '../api/sheets'
-import { updateStatus } from '../api/appscript'
+import { updateStatus, timbrarFactura } from '../api/appscript'
+import type { TimbradoResult } from '../api/appscript'
 import { QUERY_KEYS, STALE_TIMES } from '../api/config'
 import { getLogo } from '../assets/logos'
 import { NEGOCIO_LIST, getNegocio } from '../config/businesses'
@@ -35,6 +36,8 @@ export function DespachoPage({ onBack }: DespachoPageProps = {}) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [updating, setUpdating] = useState<string | null>(null)
   const [copied, setCopied] = useState('')
+  const [timbrando, setTimbrando] = useState<string | null>(null)
+  const [timbradoMsg, setTimbradoMsg] = useState<{ id: string; ok: boolean; text: string } | null>(null)
 
   const { data: solicitudes = [], isLoading } = useQuery({
     queryKey: QUERY_KEYS.solicitudes,
@@ -105,6 +108,77 @@ export function DespachoPage({ onBack }: DespachoPageProps = {}) {
       setTimeout(() => setCopied(''), 1500)
     }
   }, [])
+
+  async function handleTimbrar(sol: Solicitud) {
+    const neg = getNegocio(sol.negocio || 'mozzafiato')
+    setTimbrando(sol.id)
+    setTimbradoMsg(null)
+    try {
+      const result = await timbrarFactura({
+        rfc: sol.rfc, razonSocial: sol.razonSocial, regimen: sol.regimen,
+        usoCfdi: sol.usoCfdi, email: sol.email,
+        codigoPostal: sol.codigoPostal || '',
+        monto: sol.monto, tipoPago: sol.tipoPago,
+        negocio: sol.negocio || 'mozzafiato',
+        folioPrefix: neg.folioPrefix, mesa: sol.mesa, mesero: sol.mesero,
+      })
+      if (result.success) {
+        await updateStatus(sol.id, 'Procesada', `Timbrada — UUID: ${result.uuid}`)
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.solicitudes })
+        setTimbradoMsg({ id: sol.id, ok: true, text: `Timbrada OK — UUID: ${result.uuid?.slice(0, 8)}...` })
+        // Descargar PDF automáticamente
+        downloadBase64(result.pdfBase64, `Factura_${result.folioNumber}.pdf`, 'application/pdf')
+      } else {
+        setTimbradoMsg({ id: sol.id, ok: false, text: result.error || 'Error al timbrar' })
+      }
+    } catch (err) {
+      setTimbradoMsg({ id: sol.id, ok: false, text: err instanceof Error ? err.message : 'Error de conexión' })
+    }
+    setTimbrando(null)
+  }
+
+  async function handlePreFactura(sol: Solicitud) {
+    const neg = getNegocio(sol.negocio || 'mozzafiato')
+    setTimbrando(sol.id)
+    setTimbradoMsg(null)
+    try {
+      // Enviar pre-factura via Apps Script (email con datos sin timbrar)
+      const body = {
+        action: 'sendPreFactura',
+        solId: sol.id, rfc: sol.rfc, razonSocial: sol.razonSocial,
+        regimen: sol.regimen, usoCfdi: sol.usoCfdi, email: sol.email,
+        monto: sol.monto, tipoPago: sol.tipoPago, mesa: sol.mesa,
+        mesero: sol.mesero, fecha: sol.fecha, hora: sol.hora,
+        negocio: sol.negocio || 'mozzafiato', negocioName: neg.name,
+        codigoPostal: sol.codigoPostal || '',
+      }
+      const url = JSON.parse(localStorage.getItem('_mzf_facturas_config') ?? '{}').scriptUrl
+      if (!url) throw new Error('Apps Script URL no configurada')
+      const res = await fetch(url, { method: 'POST', body: JSON.stringify(body) })
+      const data = await res.json()
+      if (data.success) {
+        setTimbradoMsg({ id: sol.id, ok: true, text: `Pre-factura enviada a ${sol.email}` })
+      } else {
+        throw new Error(data.error || 'Error al enviar')
+      }
+    } catch (err) {
+      setTimbradoMsg({ id: sol.id, ok: false, text: err instanceof Error ? err.message : 'Error de conexión' })
+    }
+    setTimbrando(null)
+  }
+
+  function downloadBase64(base64: string, filename: string, mime: string) {
+    const bin = atob(base64)
+    const bytes = new Uint8Array(bin.length)
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+    const blob = new Blob([bytes], { type: mime })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    a.click()
+    URL.revokeObjectURL(url)
+  }
 
   return (
     <div className="h-dvh bg-bg flex flex-col overflow-hidden">
@@ -199,6 +273,10 @@ export function DespachoPage({ onBack }: DespachoPageProps = {}) {
                 onCopy={copyText}
                 onStatusChange={handleStatusChange}
                 updating={updating === sol.id}
+                onTimbrar={handleTimbrar}
+                onPreFactura={handlePreFactura}
+                timbrando={timbrando === sol.id}
+                timbradoMsg={timbradoMsg?.id === sol.id ? timbradoMsg : null}
               />
             ))}
           </div>
@@ -217,9 +295,13 @@ interface SolicitudCardProps {
   onCopy: (text: string, label: string) => void
   onStatusChange: (solId: string, status: string) => void
   updating: boolean
+  onTimbrar: (sol: Solicitud) => void
+  onPreFactura: (sol: Solicitud) => void
+  timbrando: boolean
+  timbradoMsg: { ok: boolean; text: string } | null
 }
 
-function SolicitudCard({ sol, cliente, expanded, onToggle, onCopy, onStatusChange, updating }: SolicitudCardProps) {
+function SolicitudCard({ sol, cliente, expanded, onToggle, onCopy, onStatusChange, updating, onTimbrar, onPreFactura, timbrando, timbradoMsg }: SolicitudCardProps) {
   const neg = getNegocio(sol.negocio || 'mozzafiato')
   const statusClass = STATUS_COLORS[sol.status] ?? ''
 
@@ -306,12 +388,41 @@ function SolicitudCard({ sol, cliente, expanded, onToggle, onCopy, onStatusChang
                 📋 Copiar todos los datos fiscales
               </button>
 
+              {/* Mensaje de timbrado */}
+              {timbradoMsg && (
+                <div className={`rounded-lg px-3 py-2 mb-3 text-xs ${
+                  timbradoMsg.ok ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400' : 'bg-red-500/10 border border-red-500/30 text-red-400'
+                }`}>
+                  {timbradoMsg.ok ? '✅' : '❌'} {timbradoMsg.text}
+                </div>
+              )}
+
+              {/* Acciones de facturación */}
+              {sol.status === 'Pendiente' && (
+                <div className="flex gap-2 mb-3">
+                  <button
+                    onClick={() => onPreFactura(sol)}
+                    disabled={timbrando || updating}
+                    className="btn flex-1 bg-blue-500/20 border border-blue-500/40 text-blue-400 text-xs font-bold disabled:opacity-50"
+                  >
+                    {timbrando ? '⏳...' : '📄 Pre-factura'}
+                  </button>
+                  <button
+                    onClick={() => onTimbrar(sol)}
+                    disabled={timbrando || updating}
+                    className="btn flex-1 bg-purple-500/20 border border-purple-500/40 text-purple-400 text-xs font-bold disabled:opacity-50"
+                  >
+                    {timbrando ? '⏳ Timbrando...' : '🧾 Timbrar'}
+                  </button>
+                </div>
+              )}
+
               {/* Acciones de estatus */}
               <div className="flex gap-2">
                 {sol.status === 'Pendiente' && (
                   <button
                     onClick={() => onStatusChange(sol.id, 'Procesada')}
-                    disabled={updating}
+                    disabled={updating || timbrando}
                     className="btn flex-1 bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 text-xs font-bold disabled:opacity-50"
                   >
                     {updating ? '⏳ Procesando...' : '✅ Marcar como Procesada'}
@@ -320,7 +431,7 @@ function SolicitudCard({ sol, cliente, expanded, onToggle, onCopy, onStatusChang
                 {sol.status === 'Pendiente' && (
                   <button
                     onClick={() => onStatusChange(sol.id, 'Cancelada')}
-                    disabled={updating}
+                    disabled={updating || timbrando}
                     className="btn bg-red-500/20 border border-red-500/40 text-red-400 text-xs disabled:opacity-50"
                   >
                     ❌
