@@ -185,9 +185,9 @@ function createInvoice_(customerId, data) {
     payload.series = data.folioPrefix;
   }
 
-  // Comentarios/observaciones del cliente
+  // Comentarios/observaciones del cliente (se muestran en el PDF)
   if (data.comentarios) {
-    payload.comments = data.comentarios;
+    payload.pdf_custom_section = '<p><b>Observaciones:</b> ' + data.comentarios.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</p>';
   }
 
   var response = UrlFetchApp.fetch(FACTURAPI_BASE + '/invoices', {
