@@ -3,7 +3,7 @@
 // Codifica datos del pedido + config + negocio en base64 para URL
 // ============================================================
 
-import { createLink, getLink } from '../api/appscript'
+import { createLink } from '../api/appscript'
 import type { AppConfig } from '../api/types'
 
 export interface LlevarData {
@@ -113,10 +113,29 @@ export function isExpired(data: LlevarData): boolean {
 }
 
 /**
+ * Extrae el deployment ID del scriptUrl de Apps Script.
+ * URL format: https://script.google.com/macros/s/{DEPLOYMENT_ID}/exec
+ */
+function getDeploymentId(): string {
+  const cfg = getStoredConfig()
+  const match = cfg.scriptUrl.match(/\/macros\/s\/([^/]+)\/exec/)
+  return match?.[1] ?? ''
+}
+
+/**
+ * Reconstruye el scriptUrl a partir del deployment ID.
+ */
+function buildScriptUrl(deployId: string): string {
+  return `https://script.google.com/macros/s/${deployId}/exec`
+}
+
+/**
  * Genera la URL completa del formulario para llevar (con link corto vía API).
+ * Formato: ?llevar=CODE.DEPLOYMENT_ID
  */
 export async function buildLlevarUrl(data: Omit<LlevarData, 'exp' | 'config'>): Promise<string> {
   const base = window.location.origin + import.meta.env.BASE_URL
+  const deployId = getDeploymentId()
   try {
     const code = await createLink({
       m: data.mesa, $: data.monto, t: data.tipoPago,
@@ -124,7 +143,8 @@ export async function buildLlevarUrl(data: Omit<LlevarData, 'exp' | 'config'>): 
       n: data.negocio || 'mozzafiato',
       e: Date.now() + EXPIRY_MS,
     })
-    return `${base}?llevar=${code}`
+    // CODE.DEPLOYMENT_ID — el cliente puede reconstruir el scriptUrl
+    return `${base}?llevar=${code}.${deployId}`
   } catch {
     // Fallback a base64 si falla el API
     const code = encodeLlevar(data)
@@ -133,20 +153,52 @@ export async function buildLlevarUrl(data: Omit<LlevarData, 'exp' | 'config'>): 
 }
 
 /**
- * Resuelve un código corto de link a LlevarData vía API.
+ * Detecta si un parámetro llevar es un link corto (CODE.DEPLOY_ID).
  */
-export async function resolveShortLink(code: string): Promise<LlevarData | null> {
+export function isShortLink(param: string): boolean {
+  // Short links: 6-char code + "." + deployment ID (~80 chars)
+  // Base64 links: much longer and don't contain "." (use - and _)
+  return param.includes('.') && param.split('.')[0].length <= 10
+}
+
+/**
+ * Resuelve un código corto de link a LlevarData vía GET al Apps Script.
+ * No necesita config en localStorage — el deployment ID viene en el param.
+ */
+export async function resolveShortLink(param: string): Promise<LlevarData | null> {
   try {
-    const payload = await getLink(code)
-    if (!payload.m || !payload.$ || !payload.e) return null
-    if (Date.now() > payload.e) return null // expirado
-    const cfg = getStoredConfig()
+    const dotIdx = param.indexOf('.')
+    if (dotIdx === -1) return null
+    const code = param.slice(0, dotIdx)
+    const deployId = param.slice(dotIdx + 1)
+    const scriptUrl = buildScriptUrl(deployId)
+
+    // GET público — no necesita auth ni config
+    const res = await fetch(`${scriptUrl}?link=${encodeURIComponent(code)}`)
+    const json = await res.json() as { success: boolean; payload?: Record<string, unknown>; error?: string }
+    if (!json.success || !json.payload) return null
+
+    const p = json.payload as Record<string, string | number>
+    if (!p.m || !p.$ || !p.e) return null
+    if (Date.now() > (p.e as number)) return null
+
+    // Construir config para el cliente a partir de lo que guardó createLink
+    const config: AppConfig = {
+      sheetId: (p.sid as string) || '',
+      apiKey: (p.akey as string) || '',
+      scriptUrl,
+    }
+
     return {
-      mesa: payload.m, monto: payload.$, tipoPago: payload.t,
-      mesero: payload.w, fecha: payload.f, hora: payload.h,
-      negocio: payload.n || 'mozzafiato',
-      exp: payload.e,
-      config: cfg.scriptUrl ? cfg : undefined,
+      mesa: p.m as string,
+      monto: p.$ as string,
+      tipoPago: p.t as string,
+      mesero: p.w as string,
+      fecha: p.f as string,
+      hora: p.h as string,
+      negocio: (p.n as string) || 'mozzafiato',
+      exp: p.e as number,
+      config,
     }
   } catch {
     return null

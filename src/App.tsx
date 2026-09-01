@@ -28,7 +28,7 @@ import { useNuevaSolicitud } from './hooks/useSheets'
 import { fetchSolicitudes, fetchClientes, fetchUsuarios, fetchBitacora } from './api/sheets'
 import { QUERY_KEYS, STALE_TIMES } from './api/config'
 import {
-  getLlevarParam, decodeLlevar, isExpired,
+  getLlevarParam, decodeLlevar, isExpired, isShortLink,
   getDespachoParam, decodeDespacho,
   clearSpecialParams, injectConfig,
   resolveShortLink,
@@ -88,8 +88,8 @@ export default function App() {
         clearSpecialParams()
         return { llevar: decoded, expired: false, despacho: false, pendingCode: '' }
       }
-      // Si no es base64 válido y es corto (≤10 chars), es un código corto
-      if (param.length <= 10) {
+      // Si no es base64 válido, verificar si es link corto (CODE.DEPLOY_ID)
+      if (isShortLink(param)) {
         clearSpecialParams()
         return { llevar: null as LlevarData | null, expired: false, despacho: false, pendingCode: param }
       }
@@ -111,6 +111,7 @@ export default function App() {
       const data = await resolveShortLink(initState.pendingCode)
       if (cancelled) return
       if (data) {
+        if (data.config) injectConfig(data.config)
         setLlevarData(data)
       } else {
         setLlevarExpired(true)

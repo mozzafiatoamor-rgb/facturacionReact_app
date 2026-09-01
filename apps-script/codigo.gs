@@ -16,10 +16,34 @@ function setCorsHeaders(output) {
   return output; // Web Apps añaden CORS automáticamente con "Anyone" access
 }
 
-// ── doGet — health check
+// ── doGet — health check + resolución de links cortos
 function doGet(e) {
+  // Si viene ?link=CODIGO, resolver el link corto (público, sin auth)
+  var linkCode = e && e.parameter && e.parameter.link;
+  if (linkCode) {
+    try {
+      var ss = SpreadsheetApp.getActiveSpreadsheet();
+      var sheet = ss.getSheetByName('🔗 Links');
+      if (!sheet) throw new Error('No hay links');
+      var lastRow = sheet.getLastRow();
+      if (lastRow < 2) throw new Error('Link no encontrado');
+      var rows = sheet.getRange(2, 1, lastRow - 1, 2).getValues();
+      var found = null;
+      for (var i = 0; i < rows.length; i++) {
+        if (rows[i][0] === linkCode) { found = rows[i][1]; break; }
+      }
+      if (!found) throw new Error('Link no encontrado');
+      return ContentService
+        .createTextOutput(JSON.stringify({ success: true, payload: JSON.parse(found) }))
+        .setMimeType(ContentService.MimeType.JSON);
+    } catch (err) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ success: false, error: err.message }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  }
   return ContentService
-    .createTextOutput(JSON.stringify({ status: 'ok', version: '1.1-facturas', ts: new Date().toISOString() }))
+    .createTextOutput(JSON.stringify({ status: 'ok', version: '1.2-facturas', ts: new Date().toISOString() }))
     .setMimeType(ContentService.MimeType.JSON);
 }
 
@@ -207,9 +231,13 @@ function doPost(e) {
       var chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
       var code = '';
       for (var i = 0; i < 6; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
-      var payload = JSON.stringify(data.payload || {});
+      // Incluir config del servidor para que el cliente pueda operar
+      var p = data.payload || {};
+      p.sid = SPREADSHEET_ID;
+      p.akey = PropertiesService.getScriptProperties().getProperty('SHEETS_API_KEY') || '';
+      var payload = JSON.stringify(p);
       var now = new Date().toISOString();
-      var expira = data.payload && data.payload.e ? new Date(data.payload.e).toISOString() : '';
+      var expira = p.e ? new Date(p.e).toISOString() : '';
       sheet.appendRow([code, payload, now, expira]);
       result = { success: true, code: code };
 
