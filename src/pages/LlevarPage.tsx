@@ -379,7 +379,7 @@ export function LlevarPage({ data }: LlevarPageProps) {
         </motion.div>
         <motion.div initial={{ scale: 0, rotate: -20 }} animate={{ scale: 1, rotate: 0 }}
           transition={{ type: 'spring', damping: 16, delay: 0.15 }} className="text-6xl mb-4">
-          {timbrado ? '🧾' : '✅'}
+          {timbrado ? '🧾' : timbradoError ? '⚠️' : '✅'}
         </motion.div>
 
         {/* Timbrando... */}
@@ -422,8 +422,8 @@ export function LlevarPage({ data }: LlevarPageProps) {
           </motion.div>
         )}
 
-        {/* Mensaje de éxito rotativo (solo si no timbró) */}
-        {!timbrado && !timbrando && (
+        {/* Mensaje de éxito rotativo (solo si no timbró y sin error) */}
+        {!timbrado && !timbrando && !timbradoError && (
           <>
             <AnimatePresence mode="wait">
               <motion.p key={msgIdx}
@@ -438,6 +438,14 @@ export function LlevarPage({ data }: LlevarPageProps) {
               <p className="text-muted text-xs mt-1">Se enviará confirmación a {form.email}</p>
             </div>
           </>
+        )}
+
+        {/* Mensaje cuando hay error de timbrado */}
+        {timbradoError && !timbrado && !timbrando && (
+          <div className="bg-surface/60 border border-white/10 rounded-xl px-4 py-3 backdrop-blur-sm mb-4">
+            <p className="text-white text-sm font-medium">Solicitud registrada · {neg.labelMesa} {data.mesa} · {fmt$(data.monto)}</p>
+            <p className="text-muted text-xs mt-1">Nuestro equipo generará tu factura y la enviará a {form.email}</p>
+          </div>
         )}
 
         {neg.waNumber && (
