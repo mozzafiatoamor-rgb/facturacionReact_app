@@ -106,3 +106,25 @@ export interface TimbradoResult {
 export async function timbrarFactura(input: TimbradoInput): Promise<TimbradoResult> {
   return post<TimbradoResult>({ action: 'timbrarFactura', ...input })
 }
+
+// ── LINKS CORTOS ──────────────────────────────────────────
+export interface LinkPayload {
+  m: string   // mesa
+  $: string   // monto
+  t: string   // tipoPago
+  w: string   // mesero
+  f: string   // fecha
+  h: string   // hora
+  n: string   // negocio
+  e: number   // exp timestamp
+}
+
+export async function createLink(payload: LinkPayload): Promise<string> {
+  const res = await post<{ code: string }>({ action: 'createLink', payload })
+  return res.code
+}
+
+export async function getLink(code: string): Promise<LinkPayload> {
+  const res = await post<{ payload: LinkPayload }>({ action: 'getLink', code })
+  return res.payload
+}

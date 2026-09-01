@@ -196,6 +196,38 @@ function doPost(e) {
       sendPreFactura_(data);
       result = { success: true, sent: true };
 
+    // ── createLink: guarda payload de link corto y retorna código
+    } else if (data.action === 'createLink') {
+      var sheet = ss.getSheetByName('🔗 Links');
+      if (!sheet) {
+        sheet = ss.insertSheet('🔗 Links');
+        sheet.appendRow(['Código', 'Payload', 'Creado', 'Expira']);
+      }
+      // Generar código corto único (6 chars alfanuméricos)
+      var chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+      var code = '';
+      for (var i = 0; i < 6; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
+      var payload = JSON.stringify(data.payload || {});
+      var now = new Date().toISOString();
+      var expira = data.payload && data.payload.e ? new Date(data.payload.e).toISOString() : '';
+      sheet.appendRow([code, payload, now, expira]);
+      result = { success: true, code: code };
+
+    // ── getLink: lee payload de link corto por código
+    } else if (data.action === 'getLink') {
+      var sheet = ss.getSheetByName('🔗 Links');
+      if (!sheet) throw new Error('No hay links guardados');
+      var code = data.code;
+      var lastRow = sheet.getLastRow();
+      if (lastRow < 2) throw new Error('Link no encontrado');
+      var rows = sheet.getRange(2, 1, lastRow - 1, 2).getValues();
+      var found = null;
+      for (var i = 0; i < rows.length; i++) {
+        if (rows[i][0] === code) { found = rows[i][1]; break; }
+      }
+      if (!found) throw new Error('Link no encontrado: ' + code);
+      result = { success: true, payload: JSON.parse(found) };
+
     } else {
       throw new Error('Acción desconocida: ' + data.action);
     }

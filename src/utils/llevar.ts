@@ -3,6 +3,7 @@
 // Codifica datos del pedido + config + negocio en base64 para URL
 // ============================================================
 
+import { createLink, getLink } from '../api/appscript'
 import type { AppConfig } from '../api/types'
 
 export interface LlevarData {
@@ -14,7 +15,7 @@ export interface LlevarData {
   hora: string
   negocio: string    // 'mozzafiato' | 'casaregina'
   exp: number        // timestamp de expiración
-  config?: AppConfig // config embebida para dispositivo del cliente
+  config?: AppConfig // config embebida para dispositivo del cliente (legacy)
 }
 
 const EXPIRY_MS = 5 * 24 * 60 * 60 * 1000 // 5 días
@@ -112,12 +113,44 @@ export function isExpired(data: LlevarData): boolean {
 }
 
 /**
- * Genera la URL completa del formulario para llevar.
+ * Genera la URL completa del formulario para llevar (con link corto vía API).
  */
-export function buildLlevarUrl(data: Omit<LlevarData, 'exp' | 'config'>): string {
+export async function buildLlevarUrl(data: Omit<LlevarData, 'exp' | 'config'>): Promise<string> {
   const base = window.location.origin + import.meta.env.BASE_URL
-  const code = encodeLlevar(data)
-  return `${base}?llevar=${code}`
+  try {
+    const code = await createLink({
+      m: data.mesa, $: data.monto, t: data.tipoPago,
+      w: data.mesero, f: data.fecha, h: data.hora,
+      n: data.negocio || 'mozzafiato',
+      e: Date.now() + EXPIRY_MS,
+    })
+    return `${base}?llevar=${code}`
+  } catch {
+    // Fallback a base64 si falla el API
+    const code = encodeLlevar(data)
+    return `${base}?llevar=${code}`
+  }
+}
+
+/**
+ * Resuelve un código corto de link a LlevarData vía API.
+ */
+export async function resolveShortLink(code: string): Promise<LlevarData | null> {
+  try {
+    const payload = await getLink(code)
+    if (!payload.m || !payload.$ || !payload.e) return null
+    if (Date.now() > payload.e) return null // expirado
+    const cfg = getStoredConfig()
+    return {
+      mesa: payload.m, monto: payload.$, tipoPago: payload.t,
+      mesero: payload.w, fecha: payload.f, hora: payload.h,
+      negocio: payload.n || 'mozzafiato',
+      exp: payload.e,
+      config: cfg.scriptUrl ? cfg : undefined,
+    }
+  } catch {
+    return null
+  }
 }
 
 /**
@@ -128,18 +161,16 @@ export function buildWhatsAppUrl(phone: string, llevarUrl: string, monto: string
   const full = clean.length === 10 ? `52${clean}` : clean
   const msg = encodeURIComponent(
     `Hola, gracias por tu visita a *${negocioName}*.\n\n` +
-    `Hemos mejorado nuestro sistema de facturación para brindarte un mejor servicio. Ahora puedes generar y descargar tu factura al instante.\n\n` +
+    `Hemos mejorado nuestro sistema de facturación. Ahora puedes generar y descargar tu factura al instante.\n\n` +
     `*Monto:* $${monto}\n\n` +
+    `Genera tu factura aquí:\n${llevarUrl}\n\n` +
     `*¿Cómo funciona?*\n` +
-    `1. Abre el siguiente enlace\n` +
+    `1. Abre el enlace\n` +
     `2. Busca tu RFC o regístralo como nuevo cliente\n` +
-    `3. Confirma tus datos fiscales y genera tu factura\n` +
-    `4. Descarga tu PDF y XML directamente desde la pantalla\n\n` +
-    `Genera tu factura aquí:\n` +
-    `${llevarUrl}\n\n` +
-    `También recibirás una copia de tu factura por correo electrónico.\n\n` +
-    `Si tienes alguna duda, responde a este mensaje.\n\n` +
-    `_Este enlace es válido por 5 días._`
+    `3. Confirma tus datos fiscales\n` +
+    `4. Descarga tu PDF y XML al instante\n\n` +
+    `También recibirás una copia por correo electrónico.\n\n` +
+    `_Enlace válido por 5 días._`
   )
   return `https://wa.me/${full}?text=${msg}`
 }

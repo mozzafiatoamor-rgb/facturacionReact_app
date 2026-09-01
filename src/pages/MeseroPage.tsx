@@ -32,6 +32,7 @@ export function MeseroPage({ initial, onGenerarFactura, onBack, userName }: Mese
   const [tipoPago, setTipoPago] = useState(initial?.tipoPago ?? '')
   const [notas,    setNotas   ] = useState(initial?.notas    ?? '')
   const [whatsapp, setWhatsapp] = useState('')
+  const [sendingLink, setSendingLink] = useState(false)
 
   function validate(): boolean {
     if (!negocio) { toast('Selecciona el negocio', 'error'); return false }
@@ -41,28 +42,35 @@ export function MeseroPage({ initial, onGenerarFactura, onBack, userName }: Mese
     return true
   }
 
-  function handleEnviarWhatsApp() {
+  async function handleEnviarWhatsApp() {
     if (!validate()) return
     const num = whatsapp.replace(/\D/g, '')
     if (num.length < 10) {
       toast('Ingresa un número válido de 10 dígitos', 'error')
       return
     }
-    const { date, time } = now()
-    const url = buildLlevarUrl({
-      mesa: mesa.trim(),
-      monto,
-      tipoPago,
-      mesero: userName,
-      fecha: date,
-      hora: time,
-      negocio,
-    })
-    const neg = getNegocio(negocio)
-    const waUrl = buildWhatsAppUrl(num, url, monto, neg.name)
-    window.open(waUrl, '_blank')
-    toast('Link enviado por WhatsApp')
-    setTimeout(() => onBack(), 1500)
+    setSendingLink(true)
+    try {
+      const { date, time } = now()
+      const url = await buildLlevarUrl({
+        mesa: mesa.trim(),
+        monto,
+        tipoPago,
+        mesero: userName,
+        fecha: date,
+        hora: time,
+        negocio,
+      })
+      const neg = getNegocio(negocio)
+      const waUrl = buildWhatsAppUrl(num, url, monto, neg.name)
+      window.open(waUrl, '_blank')
+      toast('Link enviado por WhatsApp')
+      setTimeout(() => onBack(), 1500)
+    } catch {
+      toast('Error al generar el link', 'error')
+    } finally {
+      setSendingLink(false)
+    }
   }
 
   function handleGenerarFactura() {
@@ -232,10 +240,11 @@ export function MeseroPage({ initial, onGenerarFactura, onBack, userName }: Mese
                 <div className="flex flex-col gap-3">
                   <button
                     onClick={handleEnviarWhatsApp}
-                    className="btn w-full text-sm font-bold"
+                    disabled={sendingLink}
+                    className="btn w-full text-sm font-bold disabled:opacity-50"
                     style={{ background: '#25D366', color: '#fff' }}
                   >
-                    Enviar al cliente
+                    {sendingLink ? 'Generando link...' : 'Enviar al cliente'}
                   </button>
 
                   <div className="relative flex items-center my-1">
@@ -246,6 +255,7 @@ export function MeseroPage({ initial, onGenerarFactura, onBack, userName }: Mese
 
                   <button
                     onClick={handleGenerarFactura}
+                    disabled={sendingLink}
                     className="btn w-full bg-surface2 border border-white/10 text-white text-sm"
                   >
                     Generar factura para el cliente

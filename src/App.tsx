@@ -31,6 +31,7 @@ import {
   getLlevarParam, decodeLlevar, isExpired,
   getDespachoParam, decodeDespacho,
   clearSpecialParams, injectConfig,
+  resolveShortLink,
 } from './utils/llevar'
 import { LOGO } from './assets/logo'
 
@@ -66,34 +67,58 @@ export default function App() {
         injectConfig(cfg)
         localStorage.setItem('_mzf_despacho', 'true')
         clearSpecialParams()
-        return { llevar: null as LlevarData | null, expired: false, despacho: true }
+        return { llevar: null as LlevarData | null, expired: false, despacho: true, pendingCode: '' }
       }
     }
     if (localStorage.getItem('_mzf_despacho') === 'true') {
-      return { llevar: null as LlevarData | null, expired: false, despacho: true }
+      return { llevar: null as LlevarData | null, expired: false, despacho: true, pendingCode: '' }
     }
 
     // Link "para llevar" de cliente
     const param = getLlevarParam()
     if (param) {
+      // Intentar decodificar como base64 (legacy)
       const decoded = decodeLlevar(param)
       if (decoded) {
         if (isExpired(decoded)) {
           clearSpecialParams()
-          return { llevar: null as LlevarData | null, expired: true, despacho: false }
+          return { llevar: null as LlevarData | null, expired: true, despacho: false, pendingCode: '' }
         }
         if (decoded.config) injectConfig(decoded.config)
         clearSpecialParams()
-        return { llevar: decoded, expired: false, despacho: false }
+        return { llevar: decoded, expired: false, despacho: false, pendingCode: '' }
+      }
+      // Si no es base64 válido y es corto (≤10 chars), es un código corto
+      if (param.length <= 10) {
+        clearSpecialParams()
+        return { llevar: null as LlevarData | null, expired: false, despacho: false, pendingCode: param }
       }
     }
 
-    return { llevar: null as LlevarData | null, expired: false, despacho: false }
+    return { llevar: null as LlevarData | null, expired: false, despacho: false, pendingCode: '' }
   })
 
   const [llevarData, setLlevarData] = useState<LlevarData | null>(initState.llevar)
-  const [llevarExpired] = useState(initState.expired)
+  const [llevarExpired, setLlevarExpired] = useState(initState.expired)
   const [isDespacho] = useState(initState.despacho)
+  const [resolvingLink, setResolvingLink] = useState(!!initState.pendingCode)
+
+  // ── Resolver código corto (async) ──
+  useEffect(() => {
+    if (!initState.pendingCode) return
+    let cancelled = false
+    ;(async () => {
+      const data = await resolveShortLink(initState.pendingCode)
+      if (cancelled) return
+      if (data) {
+        setLlevarData(data)
+      } else {
+        setLlevarExpired(true)
+      }
+      setResolvingLink(false)
+    })()
+    return () => { cancelled = true }
+  }, [initState.pendingCode])
 
   // Sync offline en background
   useOfflineSync()
@@ -165,6 +190,16 @@ export default function App() {
     setCliente(null)
     setIsNew(false)
     setStep('mesero')
+  }
+
+  // ── Render: resolviendo link corto (cargando datos del servidor) ──
+  if (resolvingLink) {
+    return (
+      <div className="font-sans antialiased text-white h-dvh overflow-hidden bg-bg flex flex-col items-center justify-center px-6 text-center">
+        <div className="h-10 w-10 border-4 border-accent border-t-transparent rounded-full animate-spin mb-4" />
+        <p className="text-muted text-sm">Cargando datos de facturación...</p>
+      </div>
+    )
   }
 
   // ── Render: panel del despacho contable ────────────────────
