@@ -127,17 +127,19 @@ export function buildWhatsAppUrl(phone: string, llevarUrl: string, monto: string
   const clean = phone.replace(/\D/g, '')
   const full = clean.length === 10 ? `52${clean}` : clean
   const msg = encodeURIComponent(
-    `¡Hola! 👋 Gracias por tu visita a *${negocioName}*\n\n` +
-    `Para solicitar tu factura por *$${monto}*, sigue estos pasos:\n\n` +
-    `1️⃣ Abre el siguiente link\n` +
-    `2️⃣ Busca tu RFC o regístralo como nuevo\n` +
-    `3️⃣ Confirma tus datos fiscales y envía\n\n` +
-    `🧾 Solicita tu factura aquí:\n` +
+    `Hola, gracias por tu visita a *${negocioName}*.\n\n` +
+    `Hemos mejorado nuestro sistema de facturación para brindarte un mejor servicio. Ahora puedes generar y descargar tu factura al instante.\n\n` +
+    `*Monto:* $${monto}\n\n` +
+    `*¿Cómo funciona?*\n` +
+    `1. Abre el siguiente enlace\n` +
+    `2. Busca tu RFC o regístralo como nuevo cliente\n` +
+    `3. Confirma tus datos fiscales y genera tu factura\n` +
+    `4. Descarga tu PDF y XML directamente desde la pantalla\n\n` +
+    `Genera tu factura aquí:\n` +
     `${llevarUrl}\n\n` +
-    `📌 *Después de enviar tu solicitud:*\n` +
-    `• Vuelve a abrir este mismo link para consultar el estatus de tu factura\n` +
-    `• Si tienes dudas o aclaraciones, comunícate con nosotros por este mismo chat\n\n` +
-    `_Este link es válido por 5 días._`
+    `También recibirás una copia de tu factura por correo electrónico.\n\n` +
+    `Si tienes alguna duda, responde a este mensaje.\n\n` +
+    `_Este enlace es válido por 5 días._`
   )
   return `https://wa.me/${full}?text=${msg}`
 }
