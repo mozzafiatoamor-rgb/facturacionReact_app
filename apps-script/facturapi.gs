@@ -323,8 +323,9 @@ function sendPreFactura_(data) {
   var montoFmt = '$' + montoNum.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   var subject = 'Pre-factura para revisión — ' + negocioName + ' · ' + (data.solId || '');
-  var headerImg = LOGO_URL
-    ? '<img src="' + LOGO_URL + '" alt="' + negocioName + '" style="max-height:70px;max-width:220px;width:auto;height:auto;object-fit:contain;display:block;margin:0 auto 10px;">'
+  var logoUrl = getLogoUrl_(data.negocio);
+  var headerImg = logoUrl
+    ? '<img src="' + logoUrl + '" alt="' + negocioName + '" style="max-height:70px;max-width:220px;width:auto;height:auto;object-fit:contain;display:block;margin:0 auto 10px;">'
     : '<div style="font-size:36px;margin-bottom:8px;">📄</div>';
 
   var htmlBody = [

@@ -254,20 +254,25 @@ function doPost(e) {
   }
 }
 
-// ── Email de confirmación al cliente
+// ── Email de confirmación al cliente (legacy — ya no se usa activamente)
 function enviarEmailConfirmacion(sol) {
+  var negocio = sol.negocio || 'mozzafiato';
+  var negocioName = negocio === 'casaregina' ? 'Casa Regina' : 'Mozzafiato';
+  var logoUrl = getLogoUrl_(negocio);
+  var headerBg = negocio === 'casaregina' ? '#0C1F2B' : '#1a120e';
+  var headerText = negocio === 'casaregina' ? '#EDE8DA' : '#f5ede8';
+  var accentColor = negocio === 'casaregina' ? '#C9A84C' : '#9a8680';
   var montoFmt = '$' + Number(sol.monto).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  var subject = 'Solicitud de Factura — Mozzafiato · ' + sol.id;
-  // Encabezado: logo si está configurado, emoji de respaldo si no
-  var headerImg = LOGO_URL
-    ? '<img src="' + LOGO_URL + '" alt="Mozzafiato" style="max-height:70px;max-width:220px;width:auto;height:auto;object-fit:contain;display:block;margin:0 auto 10px;">'
+  var subject = 'Solicitud de Factura — ' + negocioName + ' · ' + sol.id;
+  var headerImg = logoUrl
+    ? '<img src="' + logoUrl + '" alt="' + negocioName + '" style="max-height:70px;max-width:220px;width:auto;height:auto;object-fit:contain;display:block;margin:0 auto 10px;">'
     : '<div style="font-size:36px;margin-bottom:8px;">🧾</div>';
   var htmlBody = [
     '<div style="font-family:sans-serif;max-width:500px;margin:0 auto;background:#f9f9f9;border-radius:12px;overflow:hidden;">',
-    '  <div style="background:#1a120e;padding:24px;text-align:center;">',
+    '  <div style="background:' + headerBg + ';padding:24px;text-align:center;">',
     '    ' + headerImg,
-    '    <div style="color:#f5ede8;font-size:20px;font-weight:700;">Mozzafiato</div>',
-    '    <div style="color:#9a8680;font-size:13px;margin-top:4px;">Solicitud de Factura Recibida</div>',
+    '    <div style="color:' + headerText + ';font-size:20px;font-weight:700;">' + negocioName + '</div>',
+    '    <div style="color:' + accentColor + ';font-size:13px;margin-top:4px;">Solicitud de Factura Recibida</div>',
     '  </div>',
     '  <div style="padding:24px;">',
     '    <p style="color:#333;font-size:15px;">Hola <strong>' + sol.razonSocial + '</strong>,</p>',
@@ -288,8 +293,8 @@ function enviarEmailConfirmacion(sol) {
     '    </div>',
     '    <p style="color:#555;font-size:13px;">Si tienes alguna duda, contacta a nuestro equipo de administración.</p>',
     '  </div>',
-    '  <div style="background:#1a120e;padding:16px;text-align:center;">',
-    '    <div style="color:#9a8680;font-size:12px;">Mozzafiato · Solicitud ' + sol.id + ' · ' + sol.fecha + '</div>',
+    '  <div style="background:' + headerBg + ';padding:16px;text-align:center;">',
+    '    <div style="color:' + accentColor + ';font-size:12px;">' + negocioName + ' · Solicitud ' + sol.id + ' · ' + sol.fecha + '</div>',
     '  </div>',
     '</div>'
   ].join('\n');
@@ -298,23 +303,29 @@ function enviarEmailConfirmacion(sol) {
     to: sol.email,
     subject: subject,
     htmlBody: htmlBody,
-    name: 'Mozzafiato Facturas'
+    name: negocioName + ' Facturas'
   });
 }
 
-// ── Email de aviso cuando la factura ha sido generada y enviada
+// ── Email de aviso cuando la factura ha sido generada y enviada (legacy)
 function enviarEmailFacturaEnviada(sol) {
+  var negocio = sol.negocio || 'mozzafiato';
+  var negocioName = negocio === 'casaregina' ? 'Casa Regina' : 'Mozzafiato';
+  var logoUrl = getLogoUrl_(negocio);
+  var headerBg = negocio === 'casaregina' ? '#0C1F2B' : '#1a120e';
+  var headerText = negocio === 'casaregina' ? '#EDE8DA' : '#f5ede8';
+  var accentColor = negocio === 'casaregina' ? '#C9A84C' : '#9a8680';
   var montoFmt = '$' + Number(sol.monto).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  var subject = 'Tu factura está lista — Mozzafiato · ' + sol.id;
-  var headerImg = LOGO_URL
+  var subject = 'Tu factura está lista — ' + negocioName + ' · ' + sol.id;
+  var headerImg = logoUrl
     ? '<img src="' + LOGO_URL + '" alt="Mozzafiato" style="max-height:70px;max-width:220px;width:auto;height:auto;object-fit:contain;display:block;margin:0 auto 10px;">'
     : '<div style="font-size:36px;margin-bottom:8px;">✅</div>';
   var htmlBody = [
     '<div style="font-family:sans-serif;max-width:500px;margin:0 auto;background:#f9f9f9;border-radius:12px;overflow:hidden;">',
-    '  <div style="background:#1a120e;padding:24px;text-align:center;">',
+    '  <div style="background:' + headerBg + ';padding:24px;text-align:center;">',
     '    ' + headerImg,
-    '    <div style="color:#f5ede8;font-size:20px;font-weight:700;">Mozzafiato</div>',
-    '    <div style="color:#9a8680;font-size:13px;margin-top:4px;">Tu Factura Ha Sido Generada</div>',
+    '    <div style="color:' + headerText + ';font-size:20px;font-weight:700;">' + negocioName + '</div>',
+    '    <div style="color:' + accentColor + ';font-size:13px;margin-top:4px;">Tu Factura Ha Sido Generada</div>',
     '  </div>',
     '  <div style="padding:24px;">',
     '    <p style="color:#333;font-size:15px;">Hola <strong>' + sol.razonSocial + '</strong>,</p>',
@@ -333,8 +344,8 @@ function enviarEmailFacturaEnviada(sol) {
     '    </div>',
     '    <p style="color:#555;font-size:13px;">Si no recibes tu factura o tienes alguna duda, comunícate con nuestro equipo de administración indicando tu folio <strong>' + sol.id + '</strong>.</p>',
     '  </div>',
-    '  <div style="background:#1a120e;padding:16px;text-align:center;">',
-    '    <div style="color:#9a8680;font-size:12px;">Mozzafiato · Folio ' + sol.id + ' · ' + sol.fecha + '</div>',
+    '  <div style="background:' + headerBg + ';padding:16px;text-align:center;">',
+    '    <div style="color:' + accentColor + ';font-size:12px;">' + negocioName + ' · Folio ' + sol.id + ' · ' + sol.fecha + '</div>',
     '  </div>',
     '</div>'
   ].join('\n');
@@ -343,7 +354,7 @@ function enviarEmailFacturaEnviada(sol) {
     to: sol.email,
     subject: subject,
     htmlBody: htmlBody,
-    name: 'Mozzafiato Facturas'
+    name: negocioName + ' Facturas'
   });
 }
 
