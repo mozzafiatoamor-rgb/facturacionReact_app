@@ -113,12 +113,6 @@ export default function App() {
     setStep(s as FlowStep)
   }, [setStep, logout])
 
-  // ── Flujo: Mesa → Cliente → Confirm → Success ─────────
-  function handleOrderDone(o: CurrentOrder) {
-    setOrder(o)
-    setStep('cliente')
-  }
-
   // ── Flujo rápido: mesero genera factura directamente ──
   function handleGenerarFactura(o: CurrentOrder) {
     const { date, time } = { date: new Date().toLocaleDateString('es-MX'), time: new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }) }
