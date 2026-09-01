@@ -156,10 +156,15 @@ function createInvoice_(customerId, data) {
     precioBase = Math.round((precioBase + 0.01) * 100) / 100;
   }
 
+  var descripcion = mapProductDescription_(negocio);
+  if (data.comentarios) {
+    descripcion += ' — ' + data.comentarios;
+  }
+
   var item = {
     quantity: 1,
     product: {
-      description: mapProductDescription_(negocio),
+      description: descripcion,
       product_key: mapProductKey_(negocio),
       price: precioBase,
       tax_included: false,
@@ -185,10 +190,6 @@ function createInvoice_(customerId, data) {
     payload.series = data.folioPrefix;
   }
 
-  // Comentarios/observaciones del cliente (se muestran en el PDF)
-  if (data.comentarios) {
-    payload.pdf_custom_section = '<p><b>Observaciones:</b> ' + data.comentarios.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</p>';
-  }
 
   var response = UrlFetchApp.fetch(FACTURAPI_BASE + '/invoices', {
     method: 'post',
