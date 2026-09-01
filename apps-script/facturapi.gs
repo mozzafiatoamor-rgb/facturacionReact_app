@@ -15,8 +15,12 @@ var FACTURAPI_BASE = 'https://www.facturapi.io/v2';
  * Obtiene la API key de las propiedades del script.
  */
 function getFacturapiKey_() {
-  var key = PropertiesService.getScriptProperties().getProperty('FACTURAPI_KEY');
-  if (!key) throw new Error('FACTURAPI_KEY no configurada en Script Properties');
+  var props = PropertiesService.getScriptProperties();
+  var mode = (props.getProperty('FACTURAPI_MODE') || 'test').toLowerCase();
+  var key = mode === 'live'
+    ? props.getProperty('FACTURAPI_KEY_LIVE')
+    : props.getProperty('FACTURAPI_KEY_TEST');
+  if (!key) throw new Error('FACTURAPI_KEY_' + mode.toUpperCase() + ' no configurada en Script Properties');
   return key;
 }
 
@@ -118,8 +122,8 @@ function createInvoice_(customerId, data) {
   // Impuestos federales
   var taxes = [{ type: 'IVA', rate: 0.16 }];
 
-  // Retención ISR 1.25% solo para persona moral en hospedaje
-  if (esHotel && esMoral) {
+  // Retención ISR 1.25% a personas morales (ambos negocios)
+  if (esMoral) {
     taxes.push({ type: 'ISR', rate: 0.0125, factor: 'Tasa', withholding: true });
   }
 
