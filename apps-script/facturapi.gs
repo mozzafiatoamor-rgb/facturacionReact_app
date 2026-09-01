@@ -118,15 +118,15 @@ function createInvoice_(customerId, data) {
   // Impuestos federales
   var taxes = [{ type: 'IVA', rate: 0.16 }];
 
-  // Retención ISR 10% solo para persona moral en hospedaje (Art. 106 LISR)
+  // Retención ISR 1.25% solo para persona moral en hospedaje
   if (esHotel && esMoral) {
-    taxes.push({ type: 'ISR', rate: 0.10, factor: 'Tasa', withholding: true });
+    taxes.push({ type: 'ISR', rate: 0.0125, factor: 'Tasa', withholding: true });
   }
 
-  // Impuestos locales (ISH 4% Quintana Roo — solo hospedaje)
+  // Impuestos locales (ISH 5% Quintana Roo — solo hospedaje)
   var localTaxes = [];
   if (esHotel) {
-    localTaxes.push({ type: 'ISH', rate: 0.04, withholding: false });
+    localTaxes.push({ type: 'ISH', rate: 0.05, withholding: false });
   }
 
   // ── Calcular precio base sin impuestos (evita redondeo de 1 centavo) ──
