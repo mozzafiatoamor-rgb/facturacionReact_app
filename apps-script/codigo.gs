@@ -6,10 +6,17 @@
 
 var SPREADSHEET_ID = SpreadsheetApp.getActiveSpreadsheet().getId();
 
-// ── Logo URL (opcional) — pega aquí la URL pública de tu logo para que aparezca en el email
-// Ejemplo: var LOGO_URL = 'https://mi-sitio.com/logo.png';
-// Déjalo vacío ('') para usar el ícono de emoji por defecto
-var LOGO_URL = 'https://drive.google.com/uc?export=view&id=1sbXUzASbsXGZKHY3A_tzhlSxsNpACk3W';
+// ── Logos por negocio — URLs públicas de Google Drive
+var LOGOS = {
+  mozzafiato: 'https://drive.google.com/uc?export=view&id=1sbXUzASbsXGZKHY3A_tzhlSxsNpACk3W',
+  casaregina: 'https://drive.google.com/uc?export=view&id=1b-xYhNkhjhYqF8GsRqX4Yu7VC8FN4LNR',
+};
+// Helper para obtener logo por negocio (fallback a Mozzafiato)
+function getLogoUrl_(negocio) {
+  return LOGOS[negocio] || LOGOS.mozzafiato || '';
+}
+// Legacy — mantener compatibilidad con funciones que usan LOGO_URL
+var LOGO_URL = LOGOS.mozzafiato;
 
 // ── CORS helper
 function setCorsHeaders(output) {

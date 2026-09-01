@@ -244,7 +244,7 @@ function sendInvoiceEmailCustom_(invoiceId, data, pdfBase64, xmlBase64) {
     var htmlBody = [
       '<div style="font-family:sans-serif;max-width:500px;margin:0 auto;background:#f9f9f9;border-radius:12px;overflow:hidden;">',
       '  <div style="background:' + headerBg + ';padding:24px;text-align:center;">',
-      LOGO_URL ? '    <img src="' + LOGO_URL + '" alt="' + negocioName + '" style="max-height:70px;max-width:220px;width:auto;height:auto;object-fit:contain;display:block;margin:0 auto 10px;">' : '',
+      getLogoUrl_(data.negocio) ? '    <img src="' + getLogoUrl_(data.negocio) + '" alt="' + negocioName + '" style="max-height:70px;max-width:220px;width:auto;height:auto;object-fit:contain;display:block;margin:0 auto 10px;">' : '',
       '    <div style="color:' + headerText + ';font-size:20px;font-weight:700;">' + negocioName + '</div>',
       '    <div style="color:' + accentColor + ';font-size:13px;margin-top:4px;">Tu Factura Electrónica</div>',
       '  </div>',
