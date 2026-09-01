@@ -16,7 +16,7 @@ import { useQueryClient, useQuery } from '@tanstack/react-query'
 import { generateId } from '../utils/ids'
 import { now, fmt$ } from '../utils/dates'
 import type { LlevarData } from '../utils/llevar'
-import type { Cliente, Solicitud, BatchItem, EmailData } from '../api/types'
+import type { Cliente, Solicitud, BatchItem } from '../api/types'
 
 function fullRegimen(clave: string): string {
   const r = REGIMENES.find((x) => x.clave === clave || clave.startsWith(x.clave))
@@ -118,7 +118,7 @@ export function LlevarPage({ data }: LlevarPageProps) {
   const [timbrado,  setTimbrado ] = useState<TimbradoResult | null>(null)
   const [timbrando, setTimbrando] = useState(false)
   const [timbradoError, setTimbradoError] = useState('')
-  const retryRef = useRef<{ items: BatchItem[]; emailData: EmailData; solId: string } | null>(null)
+  const retryRef = useRef<{ items: BatchItem[]; solId: string } | null>(null)
 
   useEffect(() => {
     if (!done) return
@@ -209,18 +209,10 @@ export function LlevarPage({ data }: LlevarPageProps) {
       rows: [[date, time, data.mesero, 'Solicitud (llevar)', `${rfc} Mesa ${data.mesa} [${neg.name}]`, 'solicitud']],
     })
 
-    const emailData: EmailData = {
-      id: solId, fecha: date, hora: time, mesa: data.mesa,
-      monto: data.monto, tipoPago: data.tipoPago, rfc,
-      razonSocial: form.razonSocial, regimen: regimenStr,
-      usoCfdi: cfdiStr, email: form.email, status: 'Pendiente',
-      mesero: data.mesero,
-    }
-
-    retryRef.current = { items, emailData, solId }
+    retryRef.current = { items, solId }
 
     try {
-      await withRetry(() => batchAppend(items, emailData), 3)
+      await withRetry(() => batchAppend(items), 3)
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.solicitudes })
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.clientes })
       setSavedSolId(solId)
@@ -260,9 +252,9 @@ export function LlevarPage({ data }: LlevarPageProps) {
     if (!retryRef.current) return
     setSending(true)
     setSendError('')
-    const { items, emailData, solId } = retryRef.current
+    const { items, solId } = retryRef.current
     try {
-      await withRetry(() => batchAppend(items, emailData), 3)
+      await withRetry(() => batchAppend(items), 3)
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.solicitudes })
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.clientes })
       setSavedSolId(solId)
