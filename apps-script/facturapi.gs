@@ -129,13 +129,40 @@ function createInvoice_(customerId, data) {
     localTaxes.push({ type: 'ISH', rate: 0.04, withholding: false });
   }
 
+  // ── Calcular precio base sin impuestos (evita redondeo de 1 centavo) ──
+  // Facturapi trunca el Importe con tax_included:true, causando diferencias.
+  // Usamos tax_included:false con precio de 2 decimales para evitarlo.
+  var divisor = 1;
+  for (var i = 0; i < taxes.length; i++) {
+    divisor += taxes[i].withholding ? -taxes[i].rate : taxes[i].rate;
+  }
+  for (var i = 0; i < localTaxes.length; i++) {
+    divisor += localTaxes[i].withholding ? -localTaxes[i].rate : localTaxes[i].rate;
+  }
+  var precioBase = Math.round(monto / divisor * 100) / 100;
+
+  // Verificar que el total recalculado sea >= monto (preferible 1¢ arriba que abajo)
+  var totalCheck = precioBase;
+  for (var i = 0; i < taxes.length; i++) {
+    var imp = Math.round(precioBase * taxes[i].rate * 100) / 100;
+    totalCheck += taxes[i].withholding ? -imp : imp;
+  }
+  for (var i = 0; i < localTaxes.length; i++) {
+    var imp = Math.round(precioBase * localTaxes[i].rate * 100) / 100;
+    totalCheck += localTaxes[i].withholding ? -imp : imp;
+  }
+  totalCheck = Math.round(totalCheck * 100) / 100;
+  if (totalCheck < monto) {
+    precioBase = Math.round((precioBase + 0.01) * 100) / 100;
+  }
+
   var item = {
     quantity: 1,
     product: {
       description: mapProductDescription_(negocio),
       product_key: mapProductKey_(negocio),
-      price: monto,
-      tax_included: true,
+      price: precioBase,
+      tax_included: false,
       taxes: taxes,
     },
   };

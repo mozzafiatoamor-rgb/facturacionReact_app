@@ -14,13 +14,14 @@
 4. Copia y pega **todo** el contenido del archivo `facturapi.gs` de esta carpeta
 5. Guarda con Ctrl+S
 
-## Paso 3 — Agregar el handler en doPost
+## Paso 3 — Agregar los handlers en doPost
 
 1. Abre tu archivo principal donde tienes la función `doPost(e)`
 2. Busca la sección donde manejas las acciones (donde están `batchAppend`, `updateStatus`, etc.)
-3. **Antes** del último `else` o al final de la cadena de `if`, agrega el bloque que está en `doPost-patch.gs`:
+3. **Antes** del último `else` o al final de la cadena de `if`, agrega estos bloques:
 
 ```javascript
+// Timbrar factura con Facturapi
 if (action === 'timbrarFactura') {
   try {
     var result = timbrarFactura_(body);
@@ -39,6 +40,21 @@ if (action === 'timbrarFactura') {
     })).setMimeType(ContentService.MimeType.JSON);
   }
 }
+
+// Enviar pre-factura por email (sin timbrar)
+if (action === 'sendPreFactura') {
+  try {
+    sendPreFactura_(body);
+    return ContentService.createTextOutput(JSON.stringify({
+      success: true,
+    })).setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({
+      success: false,
+      error: err.message || 'Error al enviar pre-factura',
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+}
 ```
 
 4. Guarda con Ctrl+S
@@ -49,39 +65,69 @@ if (action === 'timbrarFactura') {
 2. Baja hasta **Propiedades del script**
 3. Clic en **Agregar propiedad del script**
 4. Propiedad: `FACTURAPI_KEY`
-5. Valor: `sk_test_PYFjT2GNae9sjX7qUNQqiUqib5eVgxpzg5r8n4TbJc` (tu key de prueba)
+5. Valor: tu API key de Facturapi (test o live)
 6. Clic en **Guardar propiedades del script**
 
-> Cuando actives tu suscripción en Facturapi, reemplaza esta key por la key **live** (`sk_live_...`).
+> Cuando actives tu suscripción en Facturapi, reemplaza la key test (`sk_test_...`) por la key **live** (`sk_live_...`).
 
-## Paso 5 — Redesplegar
+## Paso 5 — Autorizar permisos
+
+La primera vez, Apps Script necesita permiso para hacer llamadas HTTP externas (UrlFetchApp):
+
+1. En el editor, crea una función temporal de prueba:
+```javascript
+function testPermisos() {
+  var r = UrlFetchApp.fetch('https://httpbin.org/get');
+  Logger.log(r.getContentText());
+}
+```
+2. Selecciona `testPermisos` en el selector de funciones y dale clic a **Ejecutar**
+3. Acepta los permisos cuando te lo pida
+4. Ya puedes borrar la función de prueba
+
+## Paso 6 — Redesplegar
 
 1. En el editor, clic en **Implementar → Administrar implementaciones**
 2. Clic en el **lápiz** (editar) de tu implementación activa
 3. En "Versión", selecciona **Nueva versión**
 4. Clic en **Implementar**
-5. Si te pide autorizar permisos nuevos (acceso a URLs externas), acepta
 
-## Paso 6 — Probar
+## Cómo funciona
 
-1. Abre la app en tu teléfono
-2. Genera un link para llevar como normalmente
-3. Llena los datos fiscales con datos de prueba:
-   - RFC: `XAXX010101000` (RFC genérico para pruebas)
-   - Razón Social: `Público en General`
-   - Régimen: `616 - Sin obligaciones fiscales`
-   - Uso CFDI: `S01 - Sin efectos fiscales`
-   - Email: tu email real (para recibir la factura de prueba)
-   - C.P.: `06600`
-4. Envía la solicitud
-5. Deberías ver los botones de **Descargar PDF** y **Descargar XML**
-6. También recibirás la factura por email
+1. El cliente abre el link, llena sus datos fiscales y genera su factura
+2. La app timbra automáticamente con Facturapi (CFDI 4.0)
+3. El cliente puede descargar PDF y XML al instante
+4. Facturapi envía la factura por email al cliente automáticamente
+5. La solicitud queda registrada en tu Sheet como "Procesada"
 
-> Las facturas en modo test tienen marca de agua "FACTURA DE PRUEBA" — es normal.
+Si el timbrado falla por alguna razón, la solicitud se guarda como "Pendiente" y el despacho puede procesarla manualmente desde la pantalla de despacho.
+
+## Pantalla de Despacho
+
+Desde la pantalla de despacho (`?despacho=`), el equipo contable puede:
+
+- **Timbrar** manualmente solicitudes pendientes
+- **Enviar pre-factura** al cliente para que revise los datos antes de timbrar
+- Ver el estatus de todas las solicitudes
+
+## Cambiar nombre de la organización en Facturapi
+
+Si necesitas corregir el nombre de tu empresa (por ejemplo, si pusiste el RFC en vez del nombre):
+
+1. Entra a [dashboard.facturapi.io](https://dashboard.facturapi.io)
+2. Ve a **Configuración** o **Mi Organización**
+3. Edita el **Nombre Legal** con el nombre correcto de tu empresa
+4. Guarda los cambios
+
+> En modo **test**, también puedes actualizarlo por API:
+> ```
+> PUT https://www.facturapi.io/v2/organizations/{ORG_ID}
+> Body: { "legal_name": "Nombre Correcto de la Empresa" }
+> ```
 
 ## Notas importantes
 
 - La API key NUNCA se expone al frontend. Vive solo en Script Properties.
-- Si el timbrado falla, la solicitud se guarda igual en tu Sheet y el despacho puede procesarla manualmente.
-- Facturapi cobra $0.60 MXN por timbre en modo live.
-- Para pasar a producción: activa tu suscripción en facturapi.io, obtén tu key live (`sk_live_...`), y reemplázala en Script Properties.
+- Facturapi cobra ~$0.60 MXN por timbre en modo live.
+- Las facturas en modo test tienen marca de agua "FACTURA DE PRUEBA" — es normal.
+- Para pasar a producción: activa tu suscripción en facturapi.io, obtén tu key live, y reemplázala en Script Properties.

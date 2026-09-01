@@ -10,7 +10,7 @@ import { getLogo } from '../assets/logos'
 import { getNegocio } from '../config/businesses'
 import { REGIMENES, USOS_CFDI, QUERY_KEYS, STALE_TIMES, SHEET_NAMES } from '../api/config'
 import { fetchClientes, fetchSolicitudes } from '../api/sheets'
-import { batchAppend, sendConfirmation, timbrarFactura, updateStatus } from '../api/appscript'
+import { batchAppend, timbrarFactura, updateStatus } from '../api/appscript'
 import type { TimbradoResult } from '../api/appscript'
 import { useQueryClient, useQuery } from '@tanstack/react-query'
 import { generateId } from '../utils/ids'
@@ -28,16 +28,16 @@ function fullUsoCfdi(clave: string): string {
 }
 
 const SUCCESS_MESSAGES = [
-  '¡Solicitud enviada con éxito! Tu factura está en camino.',
-  '¡Excelente! Pronto recibirás tu factura por correo.',
-  '¡Listo! Tu solicitud fue registrada correctamente.',
-  '¡Perfecto! El equipo contable ya tiene tu solicitud.',
-  '¡Genial! Tu factura será procesada a la brevedad.',
-  '¡Todo en orden! Revisa tu correo para la confirmación.',
+  '¡Factura generada con éxito!',
+  '¡Excelente! Tu factura está lista.',
+  '¡Listo! Tu factura fue timbrada correctamente.',
+  '¡Perfecto! Ya puedes descargar tu factura.',
+  '¡Genial! Factura timbrada al instante.',
+  '¡Todo en orden! Revisa tu correo para la factura.',
   '¡Hecho! Gracias por tu preferencia.',
   '¡Tu factura va volando! Gracias por elegirnos.',
-  '¡Misión cumplida! Tu factura llegará pronto a tu correo.',
-  '¡Así de fácil! Disfruta mientras preparamos tu factura.',
+  '¡Misión cumplida! Tu factura también se envió a tu correo.',
+  '¡Así de fácil! Tu factura ya está lista para descargar.',
 ]
 
 const STATUS_CONFIG: Record<string, { color: string; bg: string; label: string }> = {
@@ -221,7 +221,6 @@ export function LlevarPage({ data }: LlevarPageProps) {
 
     try {
       await withRetry(() => batchAppend(items, emailData), 3)
-      try { await sendConfirmation(solId, emailData) } catch { /* silencioso */ }
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.solicitudes })
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.clientes })
       setSavedSolId(solId)
@@ -264,7 +263,6 @@ export function LlevarPage({ data }: LlevarPageProps) {
     const { items, emailData, solId } = retryRef.current
     try {
       await withRetry(() => batchAppend(items, emailData), 3)
-      try { await sendConfirmation(solId, emailData) } catch { /* */ }
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.solicitudes })
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.clientes })
       setSavedSolId(solId)
