@@ -10,7 +10,7 @@ import { getLogo } from '../assets/logos'
 import { getNegocio } from '../config/businesses'
 import { REGIMENES, USOS_CFDI, QUERY_KEYS, STALE_TIMES, SHEET_NAMES } from '../api/config'
 import { fetchClientes, fetchSolicitudes } from '../api/sheets'
-import { batchAppend, timbrarFactura, updateStatus } from '../api/appscript'
+import { batchAppend, timbrarFactura, updateStatus, cleanupFailed } from '../api/appscript'
 import type { TimbradoResult } from '../api/appscript'
 import { useQueryClient, useQuery } from '@tanstack/react-query'
 import { generateId } from '../utils/ids'
@@ -271,6 +271,26 @@ export function LlevarPage({ data }: LlevarPageProps) {
     }
   }
 
+  const [cleaning, setCleaning] = useState(false)
+
+  async function handleCorregir() {
+    setCleaning(true)
+    try {
+      await cleanupFailed(savedSolId, form.rfc.toUpperCase(), isNew)
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.solicitudes })
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.clientes })
+    } catch { /* best effort */ }
+    // Reset estado al formulario
+    setDone(false)
+    setConfirming(false)
+    setTimbrado(null)
+    setTimbradoError('')
+    setSavedSolId('')
+    setSendError('')
+    retryRef.current = null
+    setCleaning(false)
+  }
+
   function openNotifyWa() {
     const id = savedSolId || retryRef.current?.solId || '—'
     const url = buildNotifyWaUrl(neg.waNumber, neg.name, id, form.rfc.toUpperCase(), data.monto, data.mesa, form.email)
@@ -412,13 +432,21 @@ export function LlevarPage({ data }: LlevarPageProps) {
           </motion.div>
         )}
 
-        {/* Error de timbrado (visible para debug) */}
+        {/* Error de timbrado */}
         {timbradoError && !timbrado && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
             className="bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3 mb-4 w-full max-w-[300px]">
-            <p className="text-red-400 text-xs font-medium mb-1">No se pudo timbrar automáticamente:</p>
-            <p className="text-red-300 text-xs break-all">{timbradoError}</p>
-            <p className="text-muted text-xs mt-2">Tu solicitud fue guardada. El despacho la procesará manualmente.</p>
+            <p className="text-red-400 text-xs font-medium mb-1">No se pudo generar tu factura:</p>
+            <p className="text-red-300 text-xs break-all mb-3">{timbradoError}</p>
+            <button
+              onClick={handleCorregir}
+              disabled={cleaning}
+              className="btn w-full text-sm font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30">
+              {cleaning ? 'Limpiando...' : '✏️ Corregir datos y reintentar'}
+            </button>
+            <p className="text-muted text-xs mt-2 text-center">
+              O contacta al restaurante para que el despacho lo procese.
+            </p>
           </motion.div>
         )}
 

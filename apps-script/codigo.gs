@@ -98,6 +98,41 @@ function doPost(e) {
       sheet.deleteRow(parseInt(data.row));
       result = { success: true };
 
+    // ── cleanupFailed: elimina solicitud fallida por ID + cliente nuevo por RFC
+    } else if (data.action === 'cleanupFailed') {
+      var solSheet = ss.getSheetByName('🧾 Solicitudes');
+      var cliSheet = ss.getSheetByName('👥 Clientes');
+      var deleted = { solicitud: false, cliente: false };
+      // Eliminar solicitud por ID
+      if (solSheet && data.solId) {
+        var lastRow = solSheet.getLastRow();
+        if (lastRow >= 2) {
+          var ids = solSheet.getRange(2, 1, lastRow - 1, 1).getValues();
+          for (var i = ids.length - 1; i >= 0; i--) {
+            if (ids[i][0] === data.solId) {
+              solSheet.deleteRow(i + 2);
+              deleted.solicitud = true;
+              break;
+            }
+          }
+        }
+      }
+      // Eliminar cliente por RFC (solo si fue nuevo)
+      if (cliSheet && data.rfc && data.isNewCliente) {
+        var lastRow = cliSheet.getLastRow();
+        if (lastRow >= 2) {
+          var rfcs = cliSheet.getRange(2, 2, lastRow - 1, 1).getValues();
+          for (var i = rfcs.length - 1; i >= 0; i--) {
+            if (rfcs[i][0] === data.rfc) {
+              cliSheet.deleteRow(i + 2);
+              deleted.cliente = true;
+              break;
+            }
+          }
+        }
+      }
+      result = { success: true, deleted: deleted };
+
     // ── updateStatus: actualiza el status y notas de una solicitud por ID
     } else if (data.action === 'updateStatus') {
       var sheet = ss.getSheetByName('🧾 Solicitudes');

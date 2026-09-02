@@ -75,6 +75,15 @@ export async function deleteRow(sheet: string, row: number): Promise<void> {
   await post({ action: 'delete', sheet, row })
 }
 
+// ── CLEANUP FAILED (elimina solicitud + cliente fallido) ──
+export async function cleanupFailed(
+  solId: string,
+  rfc: string,
+  isNewCliente: boolean,
+): Promise<void> {
+  await post({ action: 'cleanupFailed', solId, rfc, isNewCliente })
+}
+
 // ── TIMBRAR FACTURA (Facturapi) ───────────────────────────
 export interface TimbradoInput {
   rfc: string
