@@ -9,7 +9,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { StatusBar } from '../components/layout/StatusBar'
 import { useToast } from '../hooks/useToast'
 import { TIPOS_PAGO } from '../api/config'
-import { buildLlevarUrl, buildWhatsAppUrl } from '../utils/llevar'
+import { buildLlevarUrl, buildWhatsAppUrl, buildWhatsAppMessage } from '../utils/llevar'
 import { now } from '../utils/dates'
 import { NEGOCIO_LIST, getNegocio } from '../config/businesses'
 import { getLogo } from '../assets/logos'
@@ -33,6 +33,8 @@ export function MeseroPage({ initial, onGenerarFactura, onBack, userName }: Mese
   const [notas,    setNotas   ] = useState(initial?.notas    ?? '')
   const [whatsapp, setWhatsapp] = useState('')
   const [sendingLink, setSendingLink] = useState(false)
+  const [copyingLink, setCopyingLink] = useState(false)
+  const [copied, setCopied] = useState(false)
 
   function validate(): boolean {
     if (!negocio) { toast('Selecciona el negocio', 'error'); return false }
@@ -70,6 +72,29 @@ export function MeseroPage({ initial, onGenerarFactura, onBack, userName }: Mese
       toast('Error al generar el link', 'error')
     } finally {
       setSendingLink(false)
+    }
+  }
+
+  async function handleCopiarMensaje() {
+    if (!validate()) return
+    setCopyingLink(true)
+    setCopied(false)
+    try {
+      const { date, time } = now()
+      const url = await buildLlevarUrl({
+        mesa: mesa.trim(), monto, tipoPago,
+        mesero: userName, fecha: date, hora: time, negocio,
+      })
+      const neg = getNegocio(negocio)
+      const msg = buildWhatsAppMessage(url, monto, neg.name)
+      await navigator.clipboard.writeText(msg)
+      setCopied(true)
+      toast('Mensaje copiado al portapapeles')
+      setTimeout(() => setCopied(false), 3000)
+    } catch {
+      toast('Error al copiar', 'error')
+    } finally {
+      setCopyingLink(false)
     }
   }
 
@@ -238,14 +263,23 @@ export function MeseroPage({ initial, onGenerarFactura, onBack, userName }: Mese
 
                 {/* Botones de acción */}
                 <div className="flex flex-col gap-3">
-                  <button
-                    onClick={handleEnviarWhatsApp}
-                    disabled={sendingLink}
-                    className="btn w-full text-sm font-bold disabled:opacity-50"
-                    style={{ background: '#25D366', color: '#fff' }}
-                  >
-                    {sendingLink ? 'Generando link...' : 'Enviar al cliente'}
-                  </button>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={handleEnviarWhatsApp}
+                      disabled={sendingLink || copyingLink}
+                      className="btn text-sm font-bold disabled:opacity-50"
+                      style={{ background: '#25D366', color: '#fff' }}
+                    >
+                      {sendingLink ? 'Generando...' : 'Enviar WhatsApp'}
+                    </button>
+                    <button
+                      onClick={handleCopiarMensaje}
+                      disabled={sendingLink || copyingLink}
+                      className="btn text-sm font-bold disabled:opacity-50 bg-blue-500/20 text-blue-400 border border-blue-500/30"
+                    >
+                      {copyingLink ? 'Generando...' : copied ? 'Copiado!' : 'Copiar mensaje'}
+                    </button>
+                  </div>
 
                   <div className="relative flex items-center my-1">
                     <div className="flex-1 border-t border-white/10" />
@@ -255,7 +289,7 @@ export function MeseroPage({ initial, onGenerarFactura, onBack, userName }: Mese
 
                   <button
                     onClick={handleGenerarFactura}
-                    disabled={sendingLink}
+                    disabled={sendingLink || copyingLink}
                     className="btn w-full bg-surface2 border border-white/10 text-white text-sm"
                   >
                     Generar factura para el cliente

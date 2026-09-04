@@ -208,10 +208,8 @@ export async function resolveShortLink(param: string): Promise<LlevarData | null
 /**
  * Genera el link de WhatsApp con mensaje prellenado.
  */
-export function buildWhatsAppUrl(phone: string, llevarUrl: string, monto: string, negocioName = 'Mozzafiato'): string {
-  const clean = phone.replace(/\D/g, '')
-  const full = clean.length === 10 ? `52${clean}` : clean
-  const msg = encodeURIComponent(
+export function buildWhatsAppMessage(llevarUrl: string, monto: string, negocioName = 'Mozzafiato'): string {
+  return (
     `Hola, gracias por tu visita a *${negocioName}*.\n\n` +
     `Hemos mejorado nuestro sistema de facturación. Ahora puedes generar y descargar tu factura al instante.\n\n` +
     `*Monto:* $${monto}\n\n` +
@@ -224,6 +222,12 @@ export function buildWhatsAppUrl(phone: string, llevarUrl: string, monto: string
     `También recibirás una copia por correo electrónico.\n\n` +
     `_Enlace válido por 5 días._`
   )
+}
+
+export function buildWhatsAppUrl(phone: string, llevarUrl: string, monto: string, negocioName = 'Mozzafiato'): string {
+  const clean = phone.replace(/\D/g, '')
+  const full = clean.length === 10 ? `52${clean}` : clean
+  const msg = encodeURIComponent(buildWhatsAppMessage(llevarUrl, monto, negocioName))
   return `https://wa.me/${full}?text=${msg}`
 }
 
