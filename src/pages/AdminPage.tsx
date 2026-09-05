@@ -126,13 +126,18 @@ export function AdminPage({ onNavigate }: AdminPageProps) {
 
   const invSummary = useMemo(() => {
     const active = invoices.filter(inv => inv.cancellationStatus !== 'accepted')
+    const summarize = (list: FacturapiInvoice[]) => ({
+      count: list.length,
+      total: list.reduce((a, i) => a + i.total, 0),
+      subtotal: list.reduce((a, i) => a + i.subtotal, 0),
+      iva: list.reduce((a, i) => a + i.iva, 0),
+      isr: list.reduce((a, i) => a + i.isr, 0),
+      ish: list.reduce((a, i) => a + i.ish, 0),
+    })
     return {
-      count: active.length,
-      total: active.reduce((a, i) => a + i.total, 0),
-      subtotal: active.reduce((a, i) => a + i.subtotal, 0),
-      iva: active.reduce((a, i) => a + i.iva, 0),
-      isr: active.reduce((a, i) => a + i.isr, 0),
-      ish: active.reduce((a, i) => a + i.ish, 0),
+      all: summarize(active),
+      mozz: summarize(active.filter(i => i.series === 'MOZZ')),
+      regina: summarize(active.filter(i => i.series === 'REGINA')),
     }
   }, [invoices])
 
@@ -295,16 +300,32 @@ export function AdminPage({ onNavigate }: AdminPageProps) {
 
             {invLoaded && !loadingInv && (
               <>
-                {/* Resumen mensual */}
-                <div className="bg-surface border border-white/10 rounded-xl p-4 mb-4">
-                  <p className="text-xs text-muted font-semibold uppercase tracking-wider mb-3">Resumen del mes</p>
-                  <div className="grid grid-cols-2 gap-3 text-sm">
-                    <div className="flex justify-between"><span className="text-muted">Facturas</span><span className="text-white font-bold">{invSummary.count}</span></div>
-                    <div className="flex justify-between"><span className="text-muted">Subtotal</span><span className="text-white font-bold">{fmt$(invSummary.subtotal)}</span></div>
-                    <div className="flex justify-between"><span className="text-muted">IVA</span><span className="text-green-400 font-bold">{fmt$(invSummary.iva)}</span></div>
-                    <div className="flex justify-between"><span className="text-muted">ISR Ret.</span><span className="text-red-400 font-bold">-{fmt$(invSummary.isr)}</span></div>
-                    <div className="flex justify-between"><span className="text-muted">ISH</span><span className="text-blue-400 font-bold">{fmt$(invSummary.ish)}</span></div>
-                    <div className="flex justify-between border-t border-white/10 pt-2"><span className="text-white font-semibold">Total</span><span className="text-accent font-bold text-base">{fmt$(invSummary.total)}</span></div>
+                {/* Resumen por negocio */}
+                {[
+                  { key: 'mozz', label: 'Mozzafiato', data: invSummary.mozz, accent: '#c8a97e' },
+                  { key: 'regina', label: 'Casa Regina', data: invSummary.regina, accent: '#C9A84C' },
+                ].map(biz => biz.data.count > 0 && (
+                  <div key={biz.key} className="bg-surface border border-white/10 rounded-xl p-4 mb-3">
+                    <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: biz.accent }}>{biz.label} ({biz.data.count} facturas)</p>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div className="flex justify-between"><span className="text-muted">Subtotal</span><span className="text-white font-bold">{fmt$(biz.data.subtotal)}</span></div>
+                      <div className="flex justify-between"><span className="text-muted">IVA</span><span className="text-green-400 font-bold">{fmt$(biz.data.iva)}</span></div>
+                      <div className="flex justify-between"><span className="text-muted">ISR Ret.</span><span className="text-red-400 font-bold">{biz.data.isr > 0 ? `-${fmt$(biz.data.isr)}` : '$0'}</span></div>
+                      <div className="flex justify-between"><span className="text-muted">ISH</span><span className="text-blue-400 font-bold">{biz.data.ish > 0 ? fmt$(biz.data.ish) : '$0'}</span></div>
+                      <div className="col-span-2 flex justify-between border-t border-white/10 pt-2"><span className="text-white font-semibold">Total</span><span className="font-bold text-base" style={{ color: biz.accent }}>{fmt$(biz.data.total)}</span></div>
+                    </div>
+                  </div>
+                ))}
+
+                {/* Total general */}
+                <div className="bg-surface border border-accent/30 rounded-xl p-4 mb-4">
+                  <p className="text-xs text-accent font-semibold uppercase tracking-wider mb-3">Total General ({invSummary.all.count} facturas)</p>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div className="flex justify-between"><span className="text-muted">Subtotal</span><span className="text-white font-bold">{fmt$(invSummary.all.subtotal)}</span></div>
+                    <div className="flex justify-between"><span className="text-muted">IVA</span><span className="text-green-400 font-bold">{fmt$(invSummary.all.iva)}</span></div>
+                    <div className="flex justify-between"><span className="text-muted">ISR Ret.</span><span className="text-red-400 font-bold">{invSummary.all.isr > 0 ? `-${fmt$(invSummary.all.isr)}` : '$0'}</span></div>
+                    <div className="flex justify-between"><span className="text-muted">ISH</span><span className="text-blue-400 font-bold">{invSummary.all.ish > 0 ? fmt$(invSummary.all.ish) : '$0'}</span></div>
+                    <div className="col-span-2 flex justify-between border-t border-white/10 pt-2"><span className="text-white font-semibold">Total Facturado</span><span className="text-accent font-bold text-lg">{fmt$(invSummary.all.total)}</span></div>
                   </div>
                 </div>
 
