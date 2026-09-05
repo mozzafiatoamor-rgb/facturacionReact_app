@@ -35,6 +35,94 @@ function facturApiHeaders_() {
 }
 
 /**
+ * Lista facturas de Facturapi con filtros de fecha y paginación.
+ * Devuelve todas las páginas para el rango solicitado.
+ */
+function listInvoices_(params) {
+  var dateFrom = params.dateFrom; // YYYY-MM-DD
+  var dateTo = params.dateTo;     // YYYY-MM-DD
+  var allInvoices = [];
+  var page = 1;
+  var hasMore = true;
+
+  while (hasMore) {
+    var url = FACTURAPI_BASE + '/invoices?type=I&limit=100&page=' + page;
+    if (dateFrom) url += '&date[gte]=' + dateFrom + 'T00:00:00.000Z';
+    if (dateTo)   url += '&date[lte]=' + dateTo + 'T23:59:59.999Z';
+
+    var res = UrlFetchApp.fetch(url, {
+      method: 'get',
+      headers: facturApiHeaders_(),
+      muteHttpExceptions: true,
+    });
+
+    if (res.getResponseCode() !== 200) {
+      throw new Error('Error consultando facturas: ' + res.getContentText());
+    }
+
+    var body = JSON.parse(res.getContentText());
+    var invoices = body.data || [];
+
+    for (var i = 0; i < invoices.length; i++) {
+      var inv = invoices[i];
+      // Calcular desglose de impuestos
+      var iva = 0, isr = 0, ish = 0, subtotal = 0;
+      var items = inv.items || [];
+      for (var j = 0; j < items.length; j++) {
+        var item = items[j];
+        var price = (item.product && item.product.price) || 0;
+        var qty = item.quantity || 1;
+        subtotal += price * qty;
+        // Impuestos federales
+        var taxes = (item.product && item.product.taxes) || [];
+        if (!Array.isArray(taxes)) taxes = Object.values(taxes);
+        for (var k = 0; k < taxes.length; k++) {
+          var tax = taxes[k];
+          var taxAmount = Math.round(price * qty * (tax.rate || 0) * 100) / 100;
+          if (tax.type === 'IVA' && !tax.withholding) iva += taxAmount;
+          if (tax.type === 'ISR' && tax.withholding) isr += taxAmount;
+        }
+        // Impuestos locales
+        var localTaxes = (item.product && item.product.local_taxes) || [];
+        if (!Array.isArray(localTaxes)) localTaxes = Object.values(localTaxes);
+        for (var k = 0; k < localTaxes.length; k++) {
+          var lt = localTaxes[k];
+          var ltAmount = Math.round(price * qty * (lt.rate || 0) * 100) / 100;
+          if (lt.type === 'ISH') ish += ltAmount;
+        }
+      }
+
+      allInvoices.push({
+        id: inv.id,
+        uuid: inv.uuid || '',
+        date: inv.date || '',
+        status: inv.status || '',
+        cancellationStatus: inv.cancellation_status || 'none',
+        folioNumber: inv.folio_number || '',
+        series: inv.series || '',
+        customerName: (inv.customer && inv.customer.legal_name) || '',
+        customerRfc: (inv.customer && inv.customer.tax_id) || '',
+        total: inv.total || 0,
+        subtotal: Math.round(subtotal * 100) / 100,
+        iva: Math.round(iva * 100) / 100,
+        isr: Math.round(isr * 100) / 100,
+        ish: Math.round(ish * 100) / 100,
+        paymentForm: inv.payment_form || '',
+      });
+    }
+
+    // Paginación: Facturapi devuelve max 100, si hay menos ya terminamos
+    if (invoices.length < 100 || page >= 30) {
+      hasMore = false;
+    } else {
+      page++;
+    }
+  }
+
+  return allInvoices;
+}
+
+/**
  * Mapea el tipo de pago de la app al código SAT.
  */
 function mapPaymentForm_(tipoPago) {

@@ -221,6 +221,11 @@ function doPost(e) {
       }
       result = { success: true, sent: sent };
 
+    // ── listInvoices: lista facturas de Facturapi con filtros de fecha
+    } else if (data.action === 'listInvoices') {
+      var invoices = listInvoices_({ dateFrom: data.dateFrom, dateTo: data.dateTo });
+      result = { success: true, invoices: invoices };
+
     // ── timbrarFactura: timbra CFDI vía Facturapi
     } else if (data.action === 'timbrarFactura') {
       var timbradoResult = timbrarFactura_(data);

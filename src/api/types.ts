@@ -157,4 +157,4 @@ export interface TipoPago {
 
 // ── Filtros para admin
 export type FilterStatus = 'all' | SolicitudStatus
-export type AdminTab = 'solicitudes' | 'clientes' | 'bitacora'
+export type AdminTab = 'facturacion' | 'solicitudes' | 'clientes' | 'bitacora'

@@ -3,7 +3,7 @@
 // Tabs con FilterPills + SearchBar + pull-to-refresh
 // ============================================================
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import { StatusBar } from '../components/layout/StatusBar'
 import { BottomNav } from '../components/layout/BottomNav'
@@ -22,13 +22,38 @@ import {
 } from '../hooks/useSheets'
 import { fmt$, isToday } from '../utils/dates'
 import { encodeDespacho } from '../utils/llevar'
+import { listInvoices } from '../api/appscript'
+import type { FacturapiInvoice } from '../api/appscript'
 import type { AdminTab, FilterStatus, Solicitud } from '../api/types'
 
 const TABS: { value: AdminTab; label: string }[] = [
+  { value: 'facturacion', label: '📊 Facturación' },
   { value: 'solicitudes', label: '🧾 Solicitudes' },
   { value: 'clientes',    label: '👥 Clientes'    },
   { value: 'bitacora',    label: '📜 Bitácora'    },
 ]
+
+const PAYMENT_FORMS: Record<string, string> = {
+  '01': 'Efectivo', '03': 'Transferencia', '04': 'T. Crédito', '28': 'T. Débito', '99': 'Por definir',
+}
+
+function getMonthRange(offset = 0) {
+  const d = new Date()
+  d.setMonth(d.getMonth() + offset)
+  const y = d.getFullYear()
+  const m = d.getMonth()
+  const from = `${y}-${String(m + 1).padStart(2, '0')}-01`
+  const last = new Date(y, m + 1, 0).getDate()
+  const to = `${y}-${String(m + 1).padStart(2, '0')}-${String(last).padStart(2, '0')}`
+  const label = d.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' })
+  return { from, to, label }
+}
+
+function formatDate(iso: string) {
+  if (!iso) return '—'
+  const d = new Date(iso)
+  return d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })
+}
 
 const STATUS_OPTIONS: { value: FilterStatus; label: string }[] = [
   { value: 'all',       label: 'Todas'     },
@@ -48,10 +73,68 @@ interface AdminPageProps {
 }
 
 export function AdminPage({ onNavigate }: AdminPageProps) {
-  const [tab,    setTab   ] = useState<AdminTab>('solicitudes')
+  const [tab,    setTab   ] = useState<AdminTab>('facturacion')
   const [filter, setFilter] = useState<FilterStatus>('all')
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<Solicitud | null>(null)
+
+  // ── Facturación tab state ──
+  const [monthOffset, setMonthOffset] = useState(0)
+  const [invoices, setInvoices] = useState<FacturapiInvoice[]>([])
+  const [loadingInv, setLoadingInv] = useState(false)
+  const [invError, setInvError] = useState('')
+  const [invSearch, setInvSearch] = useState('')
+  const [invLoaded, setInvLoaded] = useState(false)
+
+  const monthRange = useMemo(() => getMonthRange(monthOffset), [monthOffset])
+
+  const loadInvoices = useCallback(async () => {
+    setLoadingInv(true)
+    setInvError('')
+    try {
+      const data = await listInvoices(monthRange.from, monthRange.to)
+      setInvoices(data)
+      setInvLoaded(true)
+    } catch (err) {
+      setInvError(err instanceof Error ? err.message : 'Error al cargar facturas')
+    } finally {
+      setLoadingInv(false)
+    }
+  }, [monthRange.from, monthRange.to])
+
+  // Auto-load when switching to facturacion tab or changing month
+  const prevMonth = useMemo(() => monthRange.from, [monthRange.from])
+  useMemo(() => {
+    if (tab === 'facturacion') {
+      setInvLoaded(false)
+    }
+  }, [prevMonth]) // eslint-disable-line
+
+  const filteredInvoices = useMemo(() => {
+    let list = invoices.filter(inv => inv.cancellationStatus !== 'accepted')
+    if (invSearch) {
+      const q = invSearch.toLowerCase()
+      list = list.filter(inv =>
+        inv.customerRfc.toLowerCase().includes(q) ||
+        inv.customerName.toLowerCase().includes(q) ||
+        String(inv.folioNumber).includes(q) ||
+        inv.uuid.toLowerCase().includes(q)
+      )
+    }
+    return list
+  }, [invoices, invSearch])
+
+  const invSummary = useMemo(() => {
+    const active = invoices.filter(inv => inv.cancellationStatus !== 'accepted')
+    return {
+      count: active.length,
+      total: active.reduce((a, i) => a + i.total, 0),
+      subtotal: active.reduce((a, i) => a + i.subtotal, 0),
+      iva: active.reduce((a, i) => a + i.iva, 0),
+      isr: active.reduce((a, i) => a + i.isr, 0),
+      ish: active.reduce((a, i) => a + i.ish, 0),
+    }
+  }, [invoices])
 
   const { toast } = useToast()
   const invalidate = useInvalidate()
@@ -182,7 +265,88 @@ export function AdminPage({ onNavigate }: AdminPageProps) {
 
       {/* Contenido */}
       <div className="flex-1 px-4 pt-4 pb-24 overflow-y-auto">
-        <SearchBar value={search} onChange={setSearch} placeholder="Buscar..." />
+        {tab !== 'facturacion' && (
+          <SearchBar value={search} onChange={setSearch} placeholder="Buscar..." />
+        )}
+
+        {/* ── Facturación ─── */}
+        {tab === 'facturacion' && (
+          <>
+            {/* Selector de mes */}
+            <div className="flex items-center justify-between mb-4">
+              <button onClick={() => { setMonthOffset(o => o - 1); setInvLoaded(false) }}
+                className="btn btn-sm bg-surface2 text-muted border border-white/10 text-lg px-3">←</button>
+              <p className="text-sm font-bold text-white capitalize">{monthRange.label}</p>
+              <button onClick={() => { setMonthOffset(o => o + 1); setInvLoaded(false) }}
+                disabled={monthOffset >= 0}
+                className="btn btn-sm bg-surface2 text-muted border border-white/10 text-lg px-3 disabled:opacity-30">→</button>
+            </div>
+
+            {/* Botón cargar */}
+            {!invLoaded && !loadingInv && (
+              <button onClick={loadInvoices}
+                className="btn w-full bg-accent/20 text-accent border border-accent/30 text-sm font-bold mb-4">
+                Cargar facturas de {monthRange.label}
+              </button>
+            )}
+
+            {loadingInv && <div className="text-center py-8"><div className="w-6 h-6 border-2 border-accent border-t-transparent rounded-full animate-spin mx-auto mb-2" /><p className="text-muted text-xs">Consultando Facturapi...</p></div>}
+            {invError && <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3 mb-4 text-red-400 text-xs">{invError}</div>}
+
+            {invLoaded && !loadingInv && (
+              <>
+                {/* Resumen mensual */}
+                <div className="bg-surface border border-white/10 rounded-xl p-4 mb-4">
+                  <p className="text-xs text-muted font-semibold uppercase tracking-wider mb-3">Resumen del mes</p>
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div className="flex justify-between"><span className="text-muted">Facturas</span><span className="text-white font-bold">{invSummary.count}</span></div>
+                    <div className="flex justify-between"><span className="text-muted">Subtotal</span><span className="text-white font-bold">{fmt$(invSummary.subtotal)}</span></div>
+                    <div className="flex justify-between"><span className="text-muted">IVA</span><span className="text-green-400 font-bold">{fmt$(invSummary.iva)}</span></div>
+                    <div className="flex justify-between"><span className="text-muted">ISR Ret.</span><span className="text-red-400 font-bold">-{fmt$(invSummary.isr)}</span></div>
+                    <div className="flex justify-between"><span className="text-muted">ISH</span><span className="text-blue-400 font-bold">{fmt$(invSummary.ish)}</span></div>
+                    <div className="flex justify-between border-t border-white/10 pt-2"><span className="text-white font-semibold">Total</span><span className="text-accent font-bold text-base">{fmt$(invSummary.total)}</span></div>
+                  </div>
+                </div>
+
+                {/* Búsqueda */}
+                <SearchBar value={invSearch} onChange={setInvSearch} placeholder="Buscar RFC, razón social, folio..." />
+
+                {/* Lista de facturas */}
+                {filteredInvoices.length === 0 && (
+                  <EmptyState icon="📊" title="Sin facturas" message={invSearch ? 'No hay coincidencias' : 'No hay facturas en este periodo'} />
+                )}
+                {filteredInvoices.map((inv, i) => (
+                  <motion.div
+                    key={inv.id}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: Math.min(i * 0.03, 0.3) }}
+                    className="bg-surface border border-white/10 rounded-xl p-4 mb-2.5"
+                  >
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <div className="min-w-0">
+                        <p className="text-xs text-muted">Folio {inv.series}{inv.folioNumber}</p>
+                        <p className="font-bold text-white truncate">{inv.customerRfc}</p>
+                        <p className="text-xs text-muted truncate">{inv.customerName}</p>
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        <p className="text-accent font-bold">{fmt$(inv.total)}</p>
+                        <p className="text-xs text-muted">{formatDate(inv.date)}</p>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2 text-[10px] text-muted">
+                      <span className="bg-surface2 rounded px-1.5 py-0.5">IVA: {fmt$(inv.iva)}</span>
+                      {inv.isr > 0 && <span className="bg-red-500/10 text-red-400 rounded px-1.5 py-0.5">ISR: -{fmt$(inv.isr)}</span>}
+                      {inv.ish > 0 && <span className="bg-blue-500/10 text-blue-400 rounded px-1.5 py-0.5">ISH: {fmt$(inv.ish)}</span>}
+                      <span className="bg-surface2 rounded px-1.5 py-0.5">{PAYMENT_FORMS[String(inv.paymentForm)] || inv.paymentForm}</span>
+                      <span className="bg-surface2 rounded px-1.5 py-0.5 font-mono">{inv.uuid.slice(0, 8)}...</span>
+                    </div>
+                  </motion.div>
+                ))}
+              </>
+            )}
+          </>
+        )}
 
         {/* ── Solicitudes ─── */}
         {tab === 'solicitudes' && (

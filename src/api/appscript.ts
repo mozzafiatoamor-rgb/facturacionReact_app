@@ -116,6 +116,30 @@ export async function timbrarFactura(input: TimbradoInput): Promise<TimbradoResu
   return post<TimbradoResult>({ action: 'timbrarFactura', ...input })
 }
 
+// ── LIST INVOICES (Facturapi) ─────────────────────────────
+export interface FacturapiInvoice {
+  id: string
+  uuid: string
+  date: string
+  status: string
+  cancellationStatus: string
+  folioNumber: string | number
+  series: string
+  customerName: string
+  customerRfc: string
+  total: number
+  subtotal: number
+  iva: number
+  isr: number
+  ish: number
+  paymentForm: string | number
+}
+
+export async function listInvoices(dateFrom: string, dateTo: string): Promise<FacturapiInvoice[]> {
+  const res = await post<{ invoices: FacturapiInvoice[] }>({ action: 'listInvoices', dateFrom, dateTo })
+  return res.invoices
+}
+
 // ── LINKS CORTOS ──────────────────────────────────────────
 export interface LinkPayload {
   m: string   // mesa
