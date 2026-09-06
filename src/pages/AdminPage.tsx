@@ -89,6 +89,7 @@ export function AdminPage({ onNavigate }: AdminPageProps) {
   const [invError, setInvError] = useState('')
   const [invSearch, setInvSearch] = useState('')
   const [invLoaded, setInvLoaded] = useState(false)
+  const [invFilter, setInvFilter] = useState<'active' | 'cancelled'>('active')
 
   // ── Cancel invoice state ──
   const [cancelTarget, setCancelTarget] = useState<FacturapiInvoice | null>(null)
@@ -259,8 +260,18 @@ export function AdminPage({ onNavigate }: AdminPageProps) {
   }, [invoices, invSearch])
 
   const cancelledInvoices = useMemo(() => {
-    return invoices.filter(inv => isCancelled(inv))
-  }, [invoices])
+    let list = invoices.filter(inv => isCancelled(inv))
+    if (invSearch) {
+      const q = invSearch.toLowerCase()
+      list = list.filter(inv =>
+        inv.customerRfc.toLowerCase().includes(q) ||
+        inv.customerName.toLowerCase().includes(q) ||
+        String(inv.folioNumber).includes(q) ||
+        inv.uuid.toLowerCase().includes(q)
+      )
+    }
+    return list
+  }, [invoices, invSearch])
 
   const invSummary = useMemo(() => {
     const active = invoices.filter(inv => !isCancelled(inv))
@@ -467,58 +478,80 @@ export function AdminPage({ onNavigate }: AdminPageProps) {
                   </div>
                 </div>
 
+                {/* Sub-tabs: Procesadas / Canceladas */}
+                <div className="flex gap-2 mb-3">
+                  {([
+                    { key: 'active' as const, label: 'Procesadas', count: invoices.filter(inv => !isCancelled(inv)).length },
+                    { key: 'cancelled' as const, label: 'Canceladas', count: invoices.filter(inv => isCancelled(inv)).length },
+                  ]).map(pill => (
+                    <button
+                      key={pill.key}
+                      onClick={() => { setInvFilter(pill.key); setInvSearch('') }}
+                      className={`px-4 py-2 rounded-full text-xs font-semibold transition-colors ${
+                        invFilter === pill.key
+                          ? pill.key === 'cancelled'
+                            ? 'bg-red-500/20 text-red-400 border border-red-500/30'
+                            : 'bg-accent/20 text-accent border border-accent/30'
+                          : 'bg-surface2 text-muted border border-white/10'
+                      }`}
+                    >
+                      {pill.label} ({pill.count})
+                    </button>
+                  ))}
+                </div>
+
                 {/* Búsqueda */}
                 <SearchBar value={invSearch} onChange={setInvSearch} placeholder="Buscar RFC, razón social, folio..." />
 
-                {/* Lista de facturas */}
-                {filteredInvoices.length === 0 && (
-                  <EmptyState icon="📊" title="Sin facturas" message={invSearch ? 'No hay coincidencias' : 'No hay facturas en este periodo'} />
-                )}
-                {filteredInvoices.map((inv, i) => (
-                  <motion.div
-                    key={inv.id}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: Math.min(i * 0.03, 0.3) }}
-                    className="bg-surface border border-white/10 rounded-xl p-4 mb-2.5"
-                  >
-                    <div className="flex items-start justify-between gap-2 mb-2">
-                      <div className="min-w-0">
-                        <p className="text-xs text-muted">Folio {inv.series}{inv.folioNumber}</p>
-                        <p className="font-bold text-white truncate">{inv.customerRfc}</p>
-                        <p className="text-xs text-muted truncate">{inv.customerName}</p>
-                      </div>
-                      <div className="text-right flex-shrink-0">
-                        <p className="text-accent font-bold">{fmt$(inv.total)}</p>
-                        <p className="text-xs text-muted">{formatDate(inv.date)}</p>
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap gap-2 text-[10px] text-muted mb-2">
-                      <span className="bg-surface2 rounded px-1.5 py-0.5">IVA: {fmt$(inv.iva)}</span>
-                      {inv.isr > 0 && <span className="bg-red-500/10 text-red-400 rounded px-1.5 py-0.5">ISR: -{fmt$(inv.isr)}</span>}
-                      {inv.ish > 0 && <span className="bg-blue-500/10 text-blue-400 rounded px-1.5 py-0.5">ISH: {fmt$(inv.ish)}</span>}
-                      <span className="bg-surface2 rounded px-1.5 py-0.5">{PAYMENT_FORMS[String(inv.paymentForm)] || inv.paymentForm}</span>
-                      <span className="bg-surface2 rounded px-1.5 py-0.5 font-mono">{inv.uuid.slice(0, 8)}...</span>
-                    </div>
-                    <button
-                      onClick={() => { setCancelTarget(inv); setCancelMotive('02') }}
-                      className="text-[11px] px-3 py-1.5 rounded-lg bg-red-500/10 text-red-400 border border-red-500/20 font-medium hover:bg-red-500/20 transition-colors"
-                    >
-                      ✕ Cancelar factura
-                    </button>
-                  </motion.div>
-                ))}
-
-                {/* ── Facturas Canceladas ── */}
-                {cancelledInvoices.length > 0 && (
+                {/* ── Lista de facturas procesadas ── */}
+                {invFilter === 'active' && (
                   <>
-                    <div className="mt-6 mb-3 flex items-center gap-2">
-                      <div className="flex-1 border-t border-red-500/20" />
-                      <p className="text-xs font-semibold text-red-400 uppercase tracking-wider">
-                        Canceladas ({cancelledInvoices.length})
-                      </p>
-                      <div className="flex-1 border-t border-red-500/20" />
-                    </div>
+                    {filteredInvoices.length === 0 && (
+                      <EmptyState icon="📊" title="Sin facturas" message={invSearch ? 'No hay coincidencias' : 'No hay facturas en este periodo'} />
+                    )}
+                    {filteredInvoices.map((inv, i) => (
+                      <motion.div
+                        key={inv.id}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: Math.min(i * 0.03, 0.3) }}
+                        className="bg-surface border border-white/10 rounded-xl p-4 mb-2.5"
+                      >
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <div className="min-w-0">
+                            <p className="text-xs text-muted">Folio {inv.series}{inv.folioNumber}</p>
+                            <p className="font-bold text-white truncate">{inv.customerRfc}</p>
+                            <p className="text-xs text-muted truncate">{inv.customerName}</p>
+                          </div>
+                          <div className="text-right flex-shrink-0">
+                            <p className="text-accent font-bold">{fmt$(inv.total)}</p>
+                            <p className="text-xs text-muted">{formatDate(inv.date)}</p>
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-2 text-[10px] text-muted mb-2">
+                          <span className="bg-surface2 rounded px-1.5 py-0.5">IVA: {fmt$(inv.iva)}</span>
+                          {inv.isr > 0 && <span className="bg-red-500/10 text-red-400 rounded px-1.5 py-0.5">ISR: -{fmt$(inv.isr)}</span>}
+                          {inv.ish > 0 && <span className="bg-blue-500/10 text-blue-400 rounded px-1.5 py-0.5">ISH: {fmt$(inv.ish)}</span>}
+                          <span className="bg-surface2 rounded px-1.5 py-0.5">{PAYMENT_FORMS[String(inv.paymentForm)] || inv.paymentForm}</span>
+                          <span className="bg-surface2 rounded px-1.5 py-0.5 font-mono">{inv.uuid.slice(0, 8)}...</span>
+                        </div>
+                        <button
+                          onClick={() => { setCancelTarget(inv); setCancelMotive('02') }}
+                          className="text-[11px] px-3 py-1.5 rounded-lg bg-red-500/10 text-red-400 border border-red-500/20 font-medium hover:bg-red-500/20 transition-colors"
+                        >
+                          ✕ Cancelar factura
+                        </button>
+                      </motion.div>
+                    ))}
+                  </>
+                )}
+
+                {/* ── Lista de facturas canceladas ── */}
+                {invFilter === 'cancelled' && (
+                  <>
+                    {cancelledInvoices.length === 0 && (
+                      <EmptyState icon="❌" title="Sin canceladas" message={invSearch ? 'No hay coincidencias' : 'No hay facturas canceladas en este periodo'} />
+                    )}
                     {cancelledInvoices.map((inv, i) => (
                       <motion.div
                         key={inv.id}
