@@ -2,13 +2,15 @@
 // RELOADPROMPT.TSX — Auto-actualización de la PWA
 // Al detectar nueva versión, recarga automáticamente la app.
 // Muestra un breve splash "Actualizando..." mientras recarga.
+// Con timeout de seguridad para evitar quedarse trabado.
 // ============================================================
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useRegisterSW } from 'virtual:pwa-register/react'
 
 export function ReloadPrompt() {
   const [updating, setUpdating] = useState(false)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const {
     needRefresh: [needRefresh],
@@ -27,6 +29,14 @@ export function ReloadPrompt() {
     if (needRefresh) {
       setUpdating(true)
       updateServiceWorker(true) // activa el nuevo SW y recarga
+
+      // Safety: si después de 4s la página no recargó, forzar reload
+      timerRef.current = setTimeout(() => {
+        window.location.reload()
+      }, 4000)
+    }
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current)
     }
   }, [needRefresh, updateServiceWorker])
 
