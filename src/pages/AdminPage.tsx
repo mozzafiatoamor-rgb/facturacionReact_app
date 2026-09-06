@@ -22,7 +22,7 @@ import {
 } from '../hooks/useSheets'
 import { fmt$, isToday } from '../utils/dates'
 import { encodeDespacho } from '../utils/llevar'
-import { listInvoices, savePromos, cancelInvoice } from '../api/appscript'
+import { listInvoices, savePromos, cancelInvoice, downloadAcuse } from '../api/appscript'
 import { fetchPromoRows, groupPromos } from '../api/sheets'
 import { NEGOCIOS } from '../config/businesses'
 import { getLogo } from '../assets/logos'
@@ -95,6 +95,7 @@ export function AdminPage({ onNavigate }: AdminPageProps) {
   const [cancelMotive, setCancelMotive] = useState('02')
   const [cancelling, setCancelling] = useState(false)
   const [cancelAcuse, setCancelAcuse] = useState<{ uuid: string; pdf: string } | null>(null)
+  const [downloadingAcuseId, setDownloadingAcuseId] = useState<string | null>(null)
 
   // ── Promos tab state ──
   interface PromoState { headline: string; tagline: string; buttons: { cta: string; link: string }[] }
@@ -196,18 +197,38 @@ export function AdminPage({ onNavigate }: AdminPageProps) {
     }
   }
 
-  function downloadAcuse() {
-    if (!cancelAcuse) return
-    const bin = atob(cancelAcuse.pdf)
+  function downloadBase64(base64: string, filename: string, mime: string) {
+    const bin = atob(base64)
     const bytes = new Uint8Array(bin.length)
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
-    const blob = new Blob([bytes], { type: 'application/pdf' })
+    const blob = new Blob([bytes], { type: mime })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `Acuse_Cancelacion_${cancelAcuse.uuid.slice(0, 8)}.pdf`
+    a.download = filename
     a.click()
     URL.revokeObjectURL(url)
+  }
+
+  function downloadAcuseFromModal() {
+    if (!cancelAcuse) return
+    downloadBase64(cancelAcuse.pdf, `Acuse_Cancelacion_${cancelAcuse.uuid.slice(0, 8)}.pdf`, 'application/pdf')
+  }
+
+  async function handleDownloadAcuse(inv: FacturapiInvoice) {
+    setDownloadingAcuseId(inv.id)
+    try {
+      const res = await downloadAcuse(inv.id)
+      if (res.acusePdfBase64) {
+        downloadBase64(res.acusePdfBase64, `Acuse_${inv.series}${inv.folioNumber}.pdf`, 'application/pdf')
+      } else {
+        toast('El acuse aún no está disponible. El SAT puede tardar unos minutos en procesarlo.', 'info')
+      }
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Error al descargar acuse', 'error')
+    } finally {
+      setDownloadingAcuseId(null)
+    }
   }
 
   // Auto-load when switching to facturacion tab or changing month
@@ -219,7 +240,7 @@ export function AdminPage({ onNavigate }: AdminPageProps) {
   }, [prevMonth]) // eslint-disable-line
 
   const filteredInvoices = useMemo(() => {
-    let list = invoices.filter(inv => inv.cancellationStatus !== 'accepted')
+    let list = invoices.filter(inv => inv.cancellationStatus === 'none' || inv.cancellationStatus === '')
     if (invSearch) {
       const q = invSearch.toLowerCase()
       list = list.filter(inv =>
@@ -232,8 +253,12 @@ export function AdminPage({ onNavigate }: AdminPageProps) {
     return list
   }, [invoices, invSearch])
 
+  const cancelledInvoices = useMemo(() => {
+    return invoices.filter(inv => inv.cancellationStatus === 'accepted' || inv.cancellationStatus === 'pending')
+  }, [invoices])
+
   const invSummary = useMemo(() => {
-    const active = invoices.filter(inv => inv.cancellationStatus !== 'accepted')
+    const active = invoices.filter(inv => inv.cancellationStatus === 'none' || inv.cancellationStatus === '')
     const summarize = (list: FacturapiInvoice[]) => ({
       count: list.length,
       total: list.reduce((a, i) => a + i.total, 0),
@@ -478,6 +503,67 @@ export function AdminPage({ onNavigate }: AdminPageProps) {
                     </button>
                   </motion.div>
                 ))}
+
+                {/* ── Facturas Canceladas ── */}
+                {cancelledInvoices.length > 0 && (
+                  <>
+                    <div className="mt-6 mb-3 flex items-center gap-2">
+                      <div className="flex-1 border-t border-red-500/20" />
+                      <p className="text-xs font-semibold text-red-400 uppercase tracking-wider">
+                        Canceladas ({cancelledInvoices.length})
+                      </p>
+                      <div className="flex-1 border-t border-red-500/20" />
+                    </div>
+                    {cancelledInvoices.map((inv, i) => (
+                      <motion.div
+                        key={inv.id}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: Math.min(i * 0.03, 0.3) }}
+                        className="bg-surface border border-red-500/15 rounded-xl p-4 mb-2.5 opacity-75"
+                      >
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 mb-0.5">
+                              <p className="text-xs text-muted">Folio {inv.series}{inv.folioNumber}</p>
+                              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                                inv.cancellationStatus === 'accepted'
+                                  ? 'bg-red-500/15 text-red-400'
+                                  : 'bg-yellow-500/15 text-yellow-400'
+                              }`}>
+                                {inv.cancellationStatus === 'accepted' ? '❌ Cancelada' : '⏳ Cancelación pendiente'}
+                              </span>
+                            </div>
+                            <p className="font-bold text-white/60 truncate">{inv.customerRfc}</p>
+                            <p className="text-xs text-muted truncate">{inv.customerName}</p>
+                          </div>
+                          <div className="text-right flex-shrink-0">
+                            <p className="text-red-400/60 font-bold line-through">{fmt$(inv.total)}</p>
+                            <p className="text-xs text-muted">{formatDate(inv.date)}</p>
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-2 text-[10px] text-muted mb-2">
+                          <span className="bg-surface2 rounded px-1.5 py-0.5 font-mono">{inv.uuid.slice(0, 8)}...</span>
+                          <span className="bg-surface2 rounded px-1.5 py-0.5">{PAYMENT_FORMS[String(inv.paymentForm)] || inv.paymentForm}</span>
+                        </div>
+                        {inv.cancellationStatus === 'accepted' && (
+                          <button
+                            onClick={() => handleDownloadAcuse(inv)}
+                            disabled={downloadingAcuseId === inv.id}
+                            className="text-[11px] px-3 py-1.5 rounded-lg bg-accent/10 text-accent border border-accent/20 font-medium hover:bg-accent/20 transition-colors disabled:opacity-50"
+                          >
+                            {downloadingAcuseId === inv.id ? '⏳ Descargando...' : '📄 Descargar Acuse de Cancelación'}
+                          </button>
+                        )}
+                        {inv.cancellationStatus === 'pending' && (
+                          <p className="text-[11px] text-yellow-400/70">
+                            El SAT está procesando la cancelación. Vuelve después para descargar el acuse.
+                          </p>
+                        )}
+                      </motion.div>
+                    ))}
+                  </>
+                )}
               </>
             )}
           </>
@@ -792,7 +878,7 @@ export function AdminPage({ onNavigate }: AdminPageProps) {
             </div>
             {cancelAcuse.pdf && (
               <button
-                onClick={downloadAcuse}
+                onClick={downloadAcuseFromModal}
                 className="btn w-full bg-accent/20 text-accent border border-accent/30 font-bold text-sm py-3"
               >
                 📄 Descargar Acuse de Cancelación (PDF)

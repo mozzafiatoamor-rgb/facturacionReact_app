@@ -248,6 +248,15 @@ function doPost(e) {
         acusePdfBase64: cancelResult.acusePdfBase64,
       };
 
+    // ── downloadAcuse: descarga acuse de cancelación (PDF + XML)
+    } else if (data.action === 'downloadAcuse') {
+      var acuseResult = downloadCancellationReceipt_(data.invoiceId);
+      result = {
+        success: true,
+        acusePdfBase64: acuseResult.acusePdfBase64,
+        acuseXmlBase64: acuseResult.acuseXmlBase64,
+      };
+
     // ── sendPreFactura: envía email de pre-factura (sin timbrar) para revisión
     } else if (data.action === 'sendPreFactura') {
       sendPreFactura_(data);

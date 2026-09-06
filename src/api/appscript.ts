@@ -157,6 +157,17 @@ export async function cancelInvoice(
   return post<CancelResult>({ action: 'cancelInvoice', invoiceId, motive, substitution })
 }
 
+// ── DESCARGAR ACUSE DE CANCELACIÓN ───────────────────────
+export interface AcuseResult {
+  success: boolean
+  acusePdfBase64: string
+  acuseXmlBase64: string
+}
+
+export async function downloadAcuse(invoiceId: string): Promise<AcuseResult> {
+  return post<AcuseResult>({ action: 'downloadAcuse', invoiceId })
+}
+
 // ── GUARDAR PROMOS ───────────────────────────────────────
 export async function savePromos(promos: { negocio: string; headline: string; tagline: string; cta: string; link: string }[]): Promise<void> {
   await post({ action: 'savePromos', promos })

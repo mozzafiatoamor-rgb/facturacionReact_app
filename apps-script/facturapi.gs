@@ -536,6 +536,37 @@ function cancelInvoice_(invoiceId, motive, substitution) {
 }
 
 /**
+ * Descarga el acuse de cancelación de una factura ya cancelada.
+ * Se puede llamar en cualquier momento después de cancelar.
+ * Si el SAT aún no procesa, devuelve string vacío.
+ */
+function downloadCancellationReceipt_(invoiceId) {
+  var acusePdf = '';
+  var acuseXml = '';
+  try {
+    var pdfRes = UrlFetchApp.fetch(
+      FACTURAPI_BASE + '/invoices/' + invoiceId + '/cancellation_receipt',
+      { method: 'get', headers: { 'Authorization': 'Bearer ' + getFacturapiKey_() }, muteHttpExceptions: true }
+    );
+    if (pdfRes.getResponseCode() === 200) {
+      acusePdf = Utilities.base64Encode(pdfRes.getContent());
+    }
+  } catch (e) { Logger.log('Error descargando acuse PDF: ' + e.message); }
+
+  try {
+    var xmlRes = UrlFetchApp.fetch(
+      FACTURAPI_BASE + '/invoices/' + invoiceId + '/cancellation_receipt/xml',
+      { method: 'get', headers: { 'Authorization': 'Bearer ' + getFacturapiKey_() }, muteHttpExceptions: true }
+    );
+    if (xmlRes.getResponseCode() === 200) {
+      acuseXml = Utilities.base64Encode(xmlRes.getContent());
+    }
+  } catch (e) { Logger.log('Error descargando acuse XML: ' + e.message); }
+
+  return { acusePdfBase64: acusePdf, acuseXmlBase64: acuseXml };
+}
+
+/**
  * Envía un email de pre-factura (sin timbrar) al cliente para que revise los datos.
  */
 function sendPreFactura_(data) {
