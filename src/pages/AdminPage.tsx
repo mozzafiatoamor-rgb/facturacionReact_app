@@ -187,9 +187,9 @@ export function AdminPage({ onNavigate }: AdminPageProps) {
         setCancelAcuse({ uuid: cancelTarget.uuid, pdf: res.acusePdfBase64 })
       }
       toast('Factura cancelada correctamente')
-      // Reload invoices to reflect new status
-      setInvLoaded(false)
       setCancelTarget(null)
+      // Auto-reload invoices to reflect new status
+      loadInvoices()
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Error al cancelar', 'error')
     } finally {
@@ -239,8 +239,13 @@ export function AdminPage({ onNavigate }: AdminPageProps) {
     }
   }, [prevMonth]) // eslint-disable-line
 
+  // Una factura está cancelada si: status=canceled, o cancellationStatus es algo distinto de 'none'/''
+  const isCancelled = (inv: FacturapiInvoice) =>
+    inv.status === 'canceled' ||
+    (inv.cancellationStatus !== 'none' && inv.cancellationStatus !== '')
+
   const filteredInvoices = useMemo(() => {
-    let list = invoices.filter(inv => inv.cancellationStatus === 'none' || inv.cancellationStatus === '')
+    let list = invoices.filter(inv => !isCancelled(inv))
     if (invSearch) {
       const q = invSearch.toLowerCase()
       list = list.filter(inv =>
@@ -254,11 +259,11 @@ export function AdminPage({ onNavigate }: AdminPageProps) {
   }, [invoices, invSearch])
 
   const cancelledInvoices = useMemo(() => {
-    return invoices.filter(inv => inv.cancellationStatus === 'accepted' || inv.cancellationStatus === 'pending')
+    return invoices.filter(inv => isCancelled(inv))
   }, [invoices])
 
   const invSummary = useMemo(() => {
-    const active = invoices.filter(inv => inv.cancellationStatus === 'none' || inv.cancellationStatus === '')
+    const active = invoices.filter(inv => !isCancelled(inv))
     const summarize = (list: FacturapiInvoice[]) => ({
       count: list.length,
       total: list.reduce((a, i) => a + i.total, 0),
@@ -527,11 +532,13 @@ export function AdminPage({ onNavigate }: AdminPageProps) {
                             <div className="flex items-center gap-2 mb-0.5">
                               <p className="text-xs text-muted">Folio {inv.series}{inv.folioNumber}</p>
                               <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                                inv.cancellationStatus === 'accepted'
+                                (inv.cancellationStatus === 'accepted' || inv.status === 'canceled')
                                   ? 'bg-red-500/15 text-red-400'
                                   : 'bg-yellow-500/15 text-yellow-400'
                               }`}>
-                                {inv.cancellationStatus === 'accepted' ? '❌ Cancelada' : '⏳ Cancelación pendiente'}
+                                {(inv.cancellationStatus === 'accepted' || inv.status === 'canceled')
+                                  ? '❌ Cancelada'
+                                  : '⏳ Cancelación pendiente'}
                               </span>
                             </div>
                             <p className="font-bold text-white/60 truncate">{inv.customerRfc}</p>
@@ -546,7 +553,7 @@ export function AdminPage({ onNavigate }: AdminPageProps) {
                           <span className="bg-surface2 rounded px-1.5 py-0.5 font-mono">{inv.uuid.slice(0, 8)}...</span>
                           <span className="bg-surface2 rounded px-1.5 py-0.5">{PAYMENT_FORMS[String(inv.paymentForm)] || inv.paymentForm}</span>
                         </div>
-                        {inv.cancellationStatus === 'accepted' && (
+                        {(inv.cancellationStatus === 'accepted' || inv.status === 'canceled') && (
                           <button
                             onClick={() => handleDownloadAcuse(inv)}
                             disabled={downloadingAcuseId === inv.id}
@@ -555,7 +562,7 @@ export function AdminPage({ onNavigate }: AdminPageProps) {
                             {downloadingAcuseId === inv.id ? '⏳ Descargando...' : '📄 Descargar Acuse de Cancelación'}
                           </button>
                         )}
-                        {inv.cancellationStatus === 'pending' && (
+                        {inv.cancellationStatus === 'pending' && inv.status !== 'canceled' && (
                           <p className="text-[11px] text-yellow-400/70">
                             El SAT está procesando la cancelación. Vuelve después para descargar el acuse.
                           </p>
