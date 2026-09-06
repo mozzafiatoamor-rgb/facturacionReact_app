@@ -23,7 +23,7 @@ import {
 import { fmt$, isToday } from '../utils/dates'
 import { encodeDespacho } from '../utils/llevar'
 import { listInvoices, savePromos } from '../api/appscript'
-import { fetchPromos } from '../api/sheets'
+import { fetchPromoRows, groupPromos } from '../api/sheets'
 import { NEGOCIOS } from '../config/businesses'
 import { getLogo } from '../assets/logos'
 import type { FacturapiInvoice } from '../api/appscript'
@@ -91,35 +91,35 @@ export function AdminPage({ onNavigate }: AdminPageProps) {
   const [invLoaded, setInvLoaded] = useState(false)
 
   // ── Promos tab state ──
-  const defaultPromos: Record<string, { headline: string; tagline: string; cta: string; link: string }> = {
+  interface PromoState { headline: string; tagline: string; buttons: { cta: string; link: string }[] }
+  const defaultPromos: Record<string, PromoState> = {
     mozzafiato: {
       headline: '¿Buscas hospedaje en Playa del Carmen?',
       tagline: 'Casa Regina Hotel Boutique te espera con habitaciones de lujo y la mejor ubicación.',
-      cta: 'Síguenos en Facebook',
-      link: 'https://www.facebook.com/share/1HwxUyNepJ/',
+      buttons: [{ cta: 'Síguenos en Facebook', link: 'https://www.facebook.com/share/1HwxUyNepJ/' }],
     },
     casaregina: {
       headline: '¿Se te antoja la mejor pizza artesanal?',
       tagline: 'Visita Mozzafiato — auténtica cocina italiana con horno de leña.',
-      cta: 'Síguenos en Facebook',
-      link: 'https://www.facebook.com/share/1EruEYRtUC/',
+      buttons: [{ cta: 'Síguenos en Facebook', link: 'https://www.facebook.com/share/1EruEYRtUC/' }],
     },
   }
-  const [promoMozz, setPromoMozz] = useState(defaultPromos.mozzafiato)
-  const [promoRegina, setPromoRegina] = useState(defaultPromos.casaregina)
+  const [promoMozz, setPromoMozz] = useState<PromoState>(defaultPromos.mozzafiato)
+  const [promoRegina, setPromoRegina] = useState<PromoState>(defaultPromos.casaregina)
   const [promosLoaded, setPromosLoaded] = useState(false)
   const [savingPromos, setSavingPromos] = useState(false)
   const [promoSaved, setPromoSaved] = useState(false)
 
   useEffect(() => {
     if (tab === 'promos' && !promosLoaded) {
-      fetchPromos().then(rows => {
-        for (const r of rows) {
-          if (r.negocio === 'mozzafiato' && r.headline) {
-            setPromoMozz({ headline: r.headline, tagline: r.tagline, cta: r.cta, link: r.link })
+      fetchPromoRows().then(rows => {
+        const grouped = groupPromos(rows)
+        for (const g of grouped) {
+          if (g.negocio === 'mozzafiato' && g.headline) {
+            setPromoMozz({ headline: g.headline, tagline: g.tagline, buttons: g.buttons })
           }
-          if (r.negocio === 'casaregina' && r.headline) {
-            setPromoRegina({ headline: r.headline, tagline: r.tagline, cta: r.cta, link: r.link })
+          if (g.negocio === 'casaregina' && g.headline) {
+            setPromoRegina({ headline: g.headline, tagline: g.tagline, buttons: g.buttons })
           }
         }
         setPromosLoaded(true)
@@ -131,10 +131,20 @@ export function AdminPage({ onNavigate }: AdminPageProps) {
     setSavingPromos(true)
     setPromoSaved(false)
     try {
-      await savePromos([
-        { negocio: 'mozzafiato', ...promoMozz },
-        { negocio: 'casaregina', ...promoRegina },
-      ])
+      // Flatten: primera fila con headline+tagline, extras solo CTA+link
+      const flat: { negocio: string; headline: string; tagline: string; cta: string; link: string }[] = []
+      for (const [neg, state] of [['mozzafiato', promoMozz], ['casaregina', promoRegina]] as const) {
+        state.buttons.forEach((btn, i) => {
+          flat.push({
+            negocio: neg,
+            headline: i === 0 ? state.headline : '',
+            tagline: i === 0 ? state.tagline : '',
+            cta: btn.cta,
+            link: btn.link,
+          })
+        })
+      }
+      await savePromos(flat)
       setPromoSaved(true)
       toast('Promos guardadas')
       setTimeout(() => setPromoSaved(false), 3000)
@@ -586,26 +596,52 @@ export function AdminPage({ onNavigate }: AdminPageProps) {
                         placeholder="Texto descriptivo..."
                       />
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-xs text-muted block mb-1">Botón (CTA)</label>
-                        <input
-                          value={state.cta}
-                          onChange={e => setter(prev => ({ ...prev, cta: e.target.value }))}
-                          className="w-full bg-bg border border-white/10 rounded-lg px-3 py-2 text-sm text-white"
-                          placeholder="Síguenos..."
-                        />
+
+                    {/* Botones CTA (múltiples) */}
+                    <p className="text-xs text-muted font-semibold pt-1">Botones</p>
+                    {state.buttons.map((btn, bi) => (
+                      <div key={bi} className="grid grid-cols-[1fr_1fr_auto] gap-2 items-end">
+                        <div>
+                          <label className="text-[10px] text-muted block mb-1">CTA {bi + 1}</label>
+                          <input
+                            value={btn.cta}
+                            onChange={e => {
+                              const updated = [...state.buttons]
+                              updated[bi] = { ...updated[bi], cta: e.target.value }
+                              setter(prev => ({ ...prev, buttons: updated }))
+                            }}
+                            className="w-full bg-bg border border-white/10 rounded-lg px-3 py-2 text-sm text-white"
+                            placeholder="Texto del botón..."
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-muted block mb-1">Link</label>
+                          <input
+                            value={btn.link}
+                            onChange={e => {
+                              const updated = [...state.buttons]
+                              updated[bi] = { ...updated[bi], link: e.target.value }
+                              setter(prev => ({ ...prev, buttons: updated }))
+                            }}
+                            className="w-full bg-bg border border-white/10 rounded-lg px-3 py-2 text-sm text-white"
+                            placeholder="https://..."
+                          />
+                        </div>
+                        {state.buttons.length > 1 && (
+                          <button
+                            onClick={() => setter(prev => ({ ...prev, buttons: prev.buttons.filter((_, i) => i !== bi) }))}
+                            className="px-2 py-2 text-red-400 hover:bg-red-400/10 rounded-lg text-sm"
+                            title="Eliminar"
+                          >✕</button>
+                        )}
                       </div>
-                      <div>
-                        <label className="text-xs text-muted block mb-1">Link</label>
-                        <input
-                          value={state.link}
-                          onChange={e => setter(prev => ({ ...prev, link: e.target.value }))}
-                          className="w-full bg-bg border border-white/10 rounded-lg px-3 py-2 text-sm text-white"
-                          placeholder="https://..."
-                        />
-                      </div>
-                    </div>
+                    ))}
+                    <button
+                      onClick={() => setter(prev => ({ ...prev, buttons: [...prev.buttons, { cta: '', link: '' }] }))}
+                      className="text-xs px-3 py-1.5 rounded-lg border border-dashed border-white/20 text-muted hover:text-white hover:border-white/40 transition-colors w-full"
+                    >
+                      + Agregar otro botón
+                    </button>
                   </div>
 
                   {/* Vista previa */}
@@ -622,12 +658,20 @@ export function AdminPage({ onNavigate }: AdminPageProps) {
                       <p className="text-xs leading-relaxed mb-3" style={{ color: `${other.theme.headerText}99` }}>
                         {state.tagline || 'Descripción...'}
                       </p>
-                      <span
-                        className="inline-block px-5 py-2 rounded-lg text-sm font-bold"
-                        style={{ background: other.theme.accent, color: other.theme.headerBg }}
-                      >
-                        {state.cta || 'Botón'} →
-                      </span>
+                      <div className="flex flex-col gap-2">
+                        {state.buttons.map((btn, bi) => (
+                          <span
+                            key={bi}
+                            className="inline-block px-5 py-2 rounded-lg text-sm font-bold"
+                            style={bi === 0
+                              ? { background: other.theme.accent, color: other.theme.headerBg }
+                              : { background: `${other.theme.accent}20`, color: other.theme.accent, border: `1px solid ${other.theme.accent}40` }
+                            }
+                          >
+                            {btn.cta || 'Botón...'} →
+                          </span>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 </div>

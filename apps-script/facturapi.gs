@@ -357,30 +357,44 @@ function getCrossPromoBannerHtml_(negocio) {
   };
   var p = defaults[negocio];
   if (!p) return '';
-  // Sobreescribir con datos de la hoja si existen
+  // Recolectar todos los botones (múltiples filas por negocio)
+  var buttons = [{ cta: p.cta, link: p.link }];
   try {
     var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
     var promoSheet = ss.getSheetByName('📢 Promos');
     if (promoSheet) {
       var rows = promoSheet.getDataRange().getValues();
+      var foundFirst = false;
+      buttons = []; // resetear defaults si la hoja existe
       for (var i = 1; i < rows.length; i++) {
-        if (rows[i][0] === negocio && rows[i][1]) {
-          p.headline = rows[i][1] || p.headline;
-          p.tagline = rows[i][2] || p.tagline;
-          p.cta = rows[i][3] || p.cta;
-          p.link = rows[i][4] || p.link;
-          break;
+        if (rows[i][0] === negocio && rows[i][3]) {
+          if (!foundFirst) {
+            p.headline = rows[i][1] || p.headline;
+            p.tagline = rows[i][2] || p.tagline;
+            foundFirst = true;
+          }
+          buttons.push({ cta: rows[i][3], link: rows[i][4] || '' });
         }
       }
+      if (buttons.length === 0) buttons = [{ cta: p.cta, link: p.link }];
     }
   } catch(e) { /* usar defaults */ }
+  // Generar HTML de botones
+  var buttonsHtml = '';
+  for (var b = 0; b < buttons.length; b++) {
+    if (b === 0) {
+      buttonsHtml += '      <a href="' + buttons[b].link + '" target="_blank" style="display:inline-block;padding:10px 24px;background:' + p.accent + ';color:' + p.bg + ';border-radius:8px;font-size:13px;font-weight:700;text-decoration:none;margin-bottom:6px;">' + buttons[b].cta + ' →</a>';
+    } else {
+      buttonsHtml += '<br>      <a href="' + buttons[b].link + '" target="_blank" style="display:inline-block;padding:8px 20px;background:transparent;color:' + p.accent + ';border:1px solid ' + p.accent + '60;border-radius:8px;font-size:12px;font-weight:700;text-decoration:none;margin-top:4px;">' + buttons[b].cta + ' →</a>';
+    }
+  }
   return [
     '  <div style="margin:0 16px 16px;border-radius:12px;overflow:hidden;border:1px solid ' + p.accent + '40;background:' + p.bg + ';">',
     '    <div style="padding:20px;text-align:center;">',
     p.logo ? '      <img src="' + p.logo + '" alt="' + p.name + '" style="max-height:50px;max-width:180px;width:auto;height:auto;object-fit:contain;display:block;margin:0 auto 12px;">' : '',
     '      <div style="color:' + p.text + ';font-size:14px;font-weight:700;margin-bottom:6px;">' + p.headline + '</div>',
     '      <div style="color:' + p.text + '99;font-size:12px;line-height:1.5;margin-bottom:14px;">' + p.tagline + '</div>',
-    '      <a href="' + p.link + '" target="_blank" style="display:inline-block;padding:10px 24px;background:' + p.accent + ';color:' + p.bg + ';border-radius:8px;font-size:13px;font-weight:700;text-decoration:none;">' + p.cta + ' →</a>',
+    buttonsHtml,
     '    </div>',
     '  </div>',
   ].join('\n');

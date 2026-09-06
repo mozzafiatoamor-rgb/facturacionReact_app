@@ -156,12 +156,21 @@ export interface TipoPago {
 }
 
 // ── Promo cruzada entre negocios
-export interface PromoConfig {
-  negocio: string      // Col A — 'mozzafiato' | 'casaregina' (el que factura)
-  headline: string     // Col B
-  tagline: string      // Col C
+// Fila cruda del Sheet (una fila = un CTA)
+export interface PromoRow {
+  negocio: string      // Col A — 'mozzafiato' | 'casaregina'
+  headline: string     // Col B (solo la primera fila)
+  tagline: string      // Col C (solo la primera fila)
   cta: string          // Col D
   link: string         // Col E
+}
+
+// Agrupado por negocio con múltiples CTAs
+export interface PromoGrouped {
+  negocio: string
+  headline: string
+  tagline: string
+  buttons: { cta: string; link: string }[]
 }
 
 // ── Filtros para admin

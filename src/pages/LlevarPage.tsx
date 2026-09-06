@@ -10,7 +10,7 @@ import { getLogo } from '../assets/logos'
 import { getNegocio, NEGOCIOS } from '../config/businesses'
 import type { NegocioId } from '../config/businesses'
 import { REGIMENES, USOS_CFDI, QUERY_KEYS, STALE_TIMES, SHEET_NAMES } from '../api/config'
-import { fetchClientes, fetchSolicitudes, fetchPromos } from '../api/sheets'
+import { fetchClientes, fetchSolicitudes, fetchPromoRows, groupPromos } from '../api/sheets'
 import { batchAppend, timbrarFactura, updateStatus, cleanupFailed } from '../api/appscript'
 import type { TimbradoResult } from '../api/appscript'
 import { useQueryClient, useQuery } from '@tanstack/react-query'
@@ -43,20 +43,25 @@ const SUCCESS_MESSAGES = [
 
 // ── Cross-promo: si factura para negocio A, promueve negocio B
 // Defaults — se sobreescriben con datos dinámicos de la hoja 📢 Promos
-const CROSS_PROMO_DEFAULTS: Record<string, { targetId: NegocioId; headline: string; tagline: string; cta: string; link: string }> = {
+interface PromoDisplay {
+  targetId: NegocioId
+  headline: string
+  tagline: string
+  buttons: { cta: string; link: string }[]
+}
+
+const CROSS_PROMO_DEFAULTS: Record<string, PromoDisplay> = {
   mozzafiato: {
     targetId: 'casaregina',
     headline: '¿Buscas hospedaje en Playa del Carmen?',
     tagline: 'Casa Regina Hotel Boutique te espera con habitaciones de lujo y la mejor ubicación.',
-    cta: 'Síguenos en Facebook',
-    link: 'https://www.facebook.com/share/1HwxUyNepJ/',
+    buttons: [{ cta: 'Síguenos en Facebook', link: 'https://www.facebook.com/share/1HwxUyNepJ/' }],
   },
   casaregina: {
     targetId: 'mozzafiato',
     headline: '¿Se te antoja la mejor pizza artesanal?',
     tagline: 'Visita Mozzafiato — auténtica cocina italiana con horno de leña.',
-    cta: 'Síguenos en Facebook',
-    link: 'https://www.facebook.com/share/1EruEYRtUC/',
+    buttons: [{ cta: 'Síguenos en Facebook', link: 'https://www.facebook.com/share/1EruEYRtUC/' }],
   },
 }
 
@@ -114,13 +119,14 @@ export function LlevarPage({ data }: LlevarPageProps) {
   })
 
   // Fetch promo dinámica para este negocio
-  const [promoData, setPromoData] = useState<(typeof CROSS_PROMO_DEFAULTS)[string] | null>(null)
+  const [promoData, setPromoData] = useState<PromoDisplay | null>(null)
   useEffect(() => {
-    fetchPromos().then(rows => {
-      const match = rows.find(r => r.negocio === neg.id)
+    fetchPromoRows().then(rows => {
+      const grouped = groupPromos(rows)
+      const match = grouped.find(g => g.negocio === neg.id)
       if (match && match.headline) {
-        const targetId = neg.id === 'mozzafiato' ? 'casaregina' : 'mozzafiato'
-        setPromoData({ targetId: targetId as NegocioId, headline: match.headline, tagline: match.tagline, cta: match.cta, link: match.link })
+        const targetId = (neg.id === 'mozzafiato' ? 'casaregina' : 'mozzafiato') as NegocioId
+        setPromoData({ targetId, headline: match.headline, tagline: match.tagline, buttons: match.buttons })
       }
     }).catch(() => {/* usar defaults */})
   }, [neg.id])
@@ -544,15 +550,23 @@ export function LlevarPage({ data }: LlevarPageProps) {
                 <p className="text-xs leading-relaxed mb-3" style={{ color: `${other.theme.headerText}99` }}>
                   {promo.tagline}
                 </p>
-                <a
-                  href={promo.link}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-block px-5 py-2 rounded-lg text-sm font-bold transition-transform active:scale-95"
-                  style={{ background: other.theme.accent, color: other.theme.headerBg }}
-                >
-                  {promo.cta} →
-                </a>
+                <div className="flex flex-col gap-2">
+                  {promo.buttons.map((btn, bi) => (
+                    <a
+                      key={bi}
+                      href={btn.link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-block px-5 py-2 rounded-lg text-sm font-bold transition-transform active:scale-95"
+                      style={bi === 0
+                        ? { background: other.theme.accent, color: other.theme.headerBg }
+                        : { background: `${other.theme.accent}20`, color: other.theme.accent, border: `1px solid ${other.theme.accent}40` }
+                      }
+                    >
+                      {btn.cta} →
+                    </a>
+                  ))}
+                </div>
               </div>
             </motion.div>
           )

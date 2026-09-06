@@ -3,7 +3,7 @@
 // Sin CORS, rápido, con API Key pública (solo lectura)
 // ============================================================
 
-import type { Cliente, Solicitud, Usuario, BitacoraEntry, PromoConfig, AppConfig } from './types'
+import type { Cliente, Solicitud, Usuario, BitacoraEntry, PromoRow, PromoGrouped, AppConfig } from './types'
 import { SHEET_RANGES } from './config'
 
 function getConfig(): AppConfig {
@@ -86,11 +86,11 @@ export async function fetchUsuarios(): Promise<Usuario[]> {
 }
 
 // ── PROMOS ─────────────────────────────────────────────────
-export async function fetchPromos(): Promise<PromoConfig[]> {
+export async function fetchPromoRows(): Promise<PromoRow[]> {
   try {
     const rows = await readRange(SHEET_RANGES.promos)
     return rows
-      .filter(r => r[0] && r[1]) // necesita negocio + headline mínimo
+      .filter(r => r[0] && r[3]) // necesita negocio + CTA mínimo
       .map(r => ({
         negocio:  r[0] ?? '',
         headline: r[1] ?? '',
@@ -99,8 +99,27 @@ export async function fetchPromos(): Promise<PromoConfig[]> {
         link:     r[4] ?? '',
       }))
   } catch {
-    return [] // la hoja puede no existir aún
+    return []
   }
+}
+
+/** Agrupa filas por negocio: primera fila da headline/tagline, todas aportan botones */
+export function groupPromos(rows: PromoRow[]): PromoGrouped[] {
+  const map = new Map<string, PromoGrouped>()
+  for (const r of rows) {
+    const existing = map.get(r.negocio)
+    if (existing) {
+      existing.buttons.push({ cta: r.cta, link: r.link })
+    } else {
+      map.set(r.negocio, {
+        negocio: r.negocio,
+        headline: r.headline,
+        tagline: r.tagline,
+        buttons: [{ cta: r.cta, link: r.link }],
+      })
+    }
+  }
+  return Array.from(map.values())
 }
 
 // ── BITÁCORA ───────────────────────────────────────────────
