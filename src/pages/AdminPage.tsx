@@ -27,7 +27,7 @@ import { fetchPromos } from '../api/sheets'
 import { NEGOCIOS } from '../config/businesses'
 import { getLogo } from '../assets/logos'
 import type { FacturapiInvoice } from '../api/appscript'
-import type { AdminTab, FilterStatus, Solicitud, PromoConfig } from '../api/types'
+import type { AdminTab, FilterStatus, Solicitud } from '../api/types'
 
 const TABS: { value: AdminTab; label: string }[] = [
   { value: 'facturacion', label: '📊 Facturación' },
