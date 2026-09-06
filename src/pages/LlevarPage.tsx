@@ -7,7 +7,8 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { getLogo } from '../assets/logos'
-import { getNegocio } from '../config/businesses'
+import { getNegocio, NEGOCIOS } from '../config/businesses'
+import type { NegocioId } from '../config/businesses'
 import { REGIMENES, USOS_CFDI, QUERY_KEYS, STALE_TIMES, SHEET_NAMES } from '../api/config'
 import { fetchClientes, fetchSolicitudes } from '../api/sheets'
 import { batchAppend, timbrarFactura, updateStatus, cleanupFailed } from '../api/appscript'
@@ -39,6 +40,22 @@ const SUCCESS_MESSAGES = [
   '¡Misión cumplida! Tu factura también se envió a tu correo.',
   '¡Así de fácil! Tu factura ya está lista para descargar.',
 ]
+
+// ── Cross-promo: si factura para negocio A, promueve negocio B
+const CROSS_PROMO: Record<string, { targetId: NegocioId; headline: string; tagline: string; cta: string }> = {
+  mozzafiato: {
+    targetId: 'casaregina',
+    headline: '¿Buscas hospedaje en Playa del Carmen?',
+    tagline: 'Casa Regina te espera con habitaciones de lujo, alberca y la mejor ubicación.',
+    cta: 'Conocer Casa Regina',
+  },
+  casaregina: {
+    targetId: 'mozzafiato',
+    headline: '¿Se te antoja la mejor pizza artesanal?',
+    tagline: 'Visita Mozzafiato — auténtica cocina italiana con horno de leña.',
+    cta: 'Conocer Mozzafiato',
+  },
+}
 
 const STATUS_CONFIG: Record<string, { color: string; bg: string; label: string }> = {
   Pendiente:  { color: 'text-yellow-400', bg: 'bg-yellow-400/10 border-yellow-400/30', label: '⏳ Pendiente' },
@@ -489,6 +506,42 @@ export function LlevarPage({ data }: LlevarPageProps) {
             </p>
           </>
         )}
+
+        {/* ── Cross-promo banner ── */}
+        {(() => {
+          const promo = CROSS_PROMO[neg.id]
+          if (!promo) return null
+          const other = NEGOCIOS[promo.targetId]
+          const otherLogo = getLogo(other.logoKey)
+          return (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.6 }}
+              className="w-full max-w-[300px] mt-6 rounded-xl overflow-hidden border"
+              style={{ borderColor: `${other.theme.accent}40`, background: other.theme.headerBg }}
+            >
+              <div className="p-4 text-center">
+                <img src={otherLogo} alt={other.name} className="h-10 w-auto object-contain mx-auto mb-3" />
+                <p className="text-sm font-bold mb-1" style={{ color: other.theme.headerText }}>
+                  {promo.headline}
+                </p>
+                <p className="text-xs leading-relaxed mb-3" style={{ color: `${other.theme.headerText}99` }}>
+                  {promo.tagline}
+                </p>
+                <a
+                  href={other.id === 'casaregina' ? 'https://www.instagram.com/casareginaplaya/' : 'https://www.instagram.com/mozzafiatoamor/'}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-block px-5 py-2 rounded-lg text-sm font-bold transition-transform active:scale-95"
+                  style={{ background: other.theme.accent, color: other.theme.headerBg }}
+                >
+                  {promo.cta} →
+                </a>
+              </div>
+            </motion.div>
+          )
+        })()}
       </div>
     )
   }

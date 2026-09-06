@@ -324,6 +324,50 @@ function downloadInvoiceFile_(invoiceId, format) {
  * Envía la factura por correo electrónico al cliente con PDF/XML adjuntos.
  * CC a mozzafiatoamor@gmail.com para control interno.
  */
+/**
+ * Genera el HTML del banner de cross-promo entre negocios.
+ * Mozzafiato → promueve Casa Regina (hospedaje)
+ * Casa Regina → promueve Mozzafiato (restaurante)
+ */
+function getCrossPromoBannerHtml_(negocio) {
+  var promos = {
+    mozzafiato: {
+      name: 'Casa Regina',
+      headline: '¿Buscas hospedaje en Playa del Carmen?',
+      tagline: 'Casa Regina te espera con habitaciones de lujo, alberca y la mejor ubicación.',
+      cta: 'Conocer Casa Regina',
+      link: 'https://www.instagram.com/casareginaplaya/',
+      logo: LOGOS.casaregina,
+      accent: '#C9A84C',
+      bg: '#0C1F2B',
+      text: '#EDE8DA',
+    },
+    casaregina: {
+      name: 'Mozzafiato',
+      headline: '¿Se te antoja la mejor pizza artesanal?',
+      tagline: 'Visita Mozzafiato — auténtica cocina italiana con horno de leña.',
+      cta: 'Conocer Mozzafiato',
+      link: 'https://www.instagram.com/mozzafiatoamor/',
+      logo: LOGOS.mozzafiato,
+      accent: '#C45C2C',
+      bg: '#1a120e',
+      text: '#f5ede8',
+    },
+  };
+  var p = promos[negocio];
+  if (!p) return '';
+  return [
+    '  <div style="margin:0 16px 16px;border-radius:12px;overflow:hidden;border:1px solid ' + p.accent + '40;background:' + p.bg + ';">',
+    '    <div style="padding:20px;text-align:center;">',
+    p.logo ? '      <img src="' + p.logo + '" alt="' + p.name + '" style="max-height:50px;max-width:180px;width:auto;height:auto;object-fit:contain;display:block;margin:0 auto 12px;">' : '',
+    '      <div style="color:' + p.text + ';font-size:14px;font-weight:700;margin-bottom:6px;">' + p.headline + '</div>',
+    '      <div style="color:' + p.text + '99;font-size:12px;line-height:1.5;margin-bottom:14px;">' + p.tagline + '</div>',
+    '      <a href="' + p.link + '" target="_blank" style="display:inline-block;padding:10px 24px;background:' + p.accent + ';color:' + p.bg + ';border-radius:8px;font-size:13px;font-weight:700;text-decoration:none;">' + p.cta + ' →</a>',
+    '    </div>',
+    '  </div>',
+  ].join('\n');
+}
+
 function sendInvoiceEmailCustom_(invoiceId, data, pdfBase64, xmlBase64) {
   try {
     var negocioName = data.negocio === 'casaregina' ? 'Casa Regina' : 'Mozzafiato';
@@ -352,6 +396,8 @@ function sendInvoiceEmailCustom_(invoiceId, data, pdfBase64, xmlBase64) {
       '    </div>',
       '    <p style="color:#888;font-size:12px;">Este es un correo automático. Si tienes dudas, contacta a ' + negocioName + '.</p>',
       '  </div>',
+      // ── Cross-promo banner ──
+      getCrossPromoBannerHtml_(data.negocio),
       '  <div style="background:' + headerBg + ';padding:16px;text-align:center;">',
       '    <div style="color:' + accentColor + ';font-size:12px;">' + negocioName + ' · Facturación Electrónica</div>',
       '  </div>',
