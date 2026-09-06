@@ -330,13 +330,14 @@ function downloadInvoiceFile_(invoiceId, format) {
  * Casa Regina → promueve Mozzafiato (restaurante)
  */
 function getCrossPromoBannerHtml_(negocio) {
-  var promos = {
+  // Leer promos dinámicas de la hoja 📢 Promos (si existe)
+  var defaults = {
     mozzafiato: {
       name: 'Casa Regina',
       headline: '¿Buscas hospedaje en Playa del Carmen?',
-      tagline: 'Casa Regina te espera con habitaciones de lujo, alberca y la mejor ubicación.',
-      cta: 'Conocer Casa Regina',
-      link: 'https://www.instagram.com/casareginaplaya/',
+      tagline: 'Casa Regina Hotel Boutique te espera con habitaciones de lujo y la mejor ubicación.',
+      cta: 'Síguenos en Facebook',
+      link: 'https://www.facebook.com/share/1HwxUyNepJ/',
       logo: LOGOS.casaregina,
       accent: '#C9A84C',
       bg: '#0C1F2B',
@@ -346,16 +347,33 @@ function getCrossPromoBannerHtml_(negocio) {
       name: 'Mozzafiato',
       headline: '¿Se te antoja la mejor pizza artesanal?',
       tagline: 'Visita Mozzafiato — auténtica cocina italiana con horno de leña.',
-      cta: 'Conocer Mozzafiato',
-      link: 'https://www.instagram.com/mozzafiatoamor/',
+      cta: 'Síguenos en Facebook',
+      link: 'https://www.facebook.com/share/1EruEYRtUC/',
       logo: LOGOS.mozzafiato,
       accent: '#C45C2C',
       bg: '#1a120e',
       text: '#f5ede8',
     },
   };
-  var p = promos[negocio];
+  var p = defaults[negocio];
   if (!p) return '';
+  // Sobreescribir con datos de la hoja si existen
+  try {
+    var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    var promoSheet = ss.getSheetByName('📢 Promos');
+    if (promoSheet) {
+      var rows = promoSheet.getDataRange().getValues();
+      for (var i = 1; i < rows.length; i++) {
+        if (rows[i][0] === negocio && rows[i][1]) {
+          p.headline = rows[i][1] || p.headline;
+          p.tagline = rows[i][2] || p.tagline;
+          p.cta = rows[i][3] || p.cta;
+          p.link = rows[i][4] || p.link;
+          break;
+        }
+      }
+    }
+  } catch(e) { /* usar defaults */ }
   return [
     '  <div style="margin:0 16px 16px;border-radius:12px;overflow:hidden;border:1px solid ' + p.accent + '40;background:' + p.bg + ';">',
     '    <div style="padding:20px;text-align:center;">',

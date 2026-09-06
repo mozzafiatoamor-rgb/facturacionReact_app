@@ -3,7 +3,7 @@
 // Tabs con FilterPills + SearchBar + pull-to-refresh
 // ============================================================
 
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { StatusBar } from '../components/layout/StatusBar'
 import { BottomNav } from '../components/layout/BottomNav'
@@ -22,15 +22,19 @@ import {
 } from '../hooks/useSheets'
 import { fmt$, isToday } from '../utils/dates'
 import { encodeDespacho } from '../utils/llevar'
-import { listInvoices } from '../api/appscript'
+import { listInvoices, savePromos } from '../api/appscript'
+import { fetchPromos } from '../api/sheets'
+import { NEGOCIOS } from '../config/businesses'
+import { getLogo } from '../assets/logos'
 import type { FacturapiInvoice } from '../api/appscript'
-import type { AdminTab, FilterStatus, Solicitud } from '../api/types'
+import type { AdminTab, FilterStatus, Solicitud, PromoConfig } from '../api/types'
 
 const TABS: { value: AdminTab; label: string }[] = [
   { value: 'facturacion', label: '📊 Facturación' },
   { value: 'solicitudes', label: '🧾 Solicitudes' },
   { value: 'clientes',    label: '👥 Clientes'    },
   { value: 'bitacora',    label: '📜 Bitácora'    },
+  { value: 'promos',      label: '📢 Promos'      },
 ]
 
 const PAYMENT_FORMS: Record<string, string> = {
@@ -85,6 +89,61 @@ export function AdminPage({ onNavigate }: AdminPageProps) {
   const [invError, setInvError] = useState('')
   const [invSearch, setInvSearch] = useState('')
   const [invLoaded, setInvLoaded] = useState(false)
+
+  // ── Promos tab state ──
+  const defaultPromos: Record<string, { headline: string; tagline: string; cta: string; link: string }> = {
+    mozzafiato: {
+      headline: '¿Buscas hospedaje en Playa del Carmen?',
+      tagline: 'Casa Regina Hotel Boutique te espera con habitaciones de lujo y la mejor ubicación.',
+      cta: 'Síguenos en Facebook',
+      link: 'https://www.facebook.com/share/1HwxUyNepJ/',
+    },
+    casaregina: {
+      headline: '¿Se te antoja la mejor pizza artesanal?',
+      tagline: 'Visita Mozzafiato — auténtica cocina italiana con horno de leña.',
+      cta: 'Síguenos en Facebook',
+      link: 'https://www.facebook.com/share/1EruEYRtUC/',
+    },
+  }
+  const [promoMozz, setPromoMozz] = useState(defaultPromos.mozzafiato)
+  const [promoRegina, setPromoRegina] = useState(defaultPromos.casaregina)
+  const [promosLoaded, setPromosLoaded] = useState(false)
+  const [savingPromos, setSavingPromos] = useState(false)
+  const [promoSaved, setPromoSaved] = useState(false)
+
+  useEffect(() => {
+    if (tab === 'promos' && !promosLoaded) {
+      fetchPromos().then(rows => {
+        for (const r of rows) {
+          if (r.negocio === 'mozzafiato' && r.headline) {
+            setPromoMozz({ headline: r.headline, tagline: r.tagline, cta: r.cta, link: r.link })
+          }
+          if (r.negocio === 'casaregina' && r.headline) {
+            setPromoRegina({ headline: r.headline, tagline: r.tagline, cta: r.cta, link: r.link })
+          }
+        }
+        setPromosLoaded(true)
+      }).catch(() => setPromosLoaded(true))
+    }
+  }, [tab, promosLoaded])
+
+  async function handleSavePromos() {
+    setSavingPromos(true)
+    setPromoSaved(false)
+    try {
+      await savePromos([
+        { negocio: 'mozzafiato', ...promoMozz },
+        { negocio: 'casaregina', ...promoRegina },
+      ])
+      setPromoSaved(true)
+      toast('Promos guardadas')
+      setTimeout(() => setPromoSaved(false), 3000)
+    } catch {
+      toast('Error al guardar promos', 'error')
+    } finally {
+      setSavingPromos(false)
+    }
+  }
 
   const monthRange = useMemo(() => getMonthRange(monthOffset), [monthOffset])
 
@@ -270,7 +329,7 @@ export function AdminPage({ onNavigate }: AdminPageProps) {
 
       {/* Contenido */}
       <div className="flex-1 px-4 pt-4 pb-24 overflow-y-auto">
-        {tab !== 'facturacion' && (
+        {tab !== 'facturacion' && tab !== 'promos' && (
           <SearchBar value={search} onChange={setSearch} placeholder="Buscar..." />
         )}
 
@@ -486,6 +545,103 @@ export function AdminPage({ onNavigate }: AdminPageProps) {
                 </div>
               </motion.div>
             ))}
+          </>
+        )}
+
+        {/* ── Promos ─── */}
+        {tab === 'promos' && (
+          <>
+            <p className="text-xs text-muted mb-4">
+              Edita la publicidad cruzada que aparece al cliente después de facturar y en los emails.
+            </p>
+
+            {[
+              { key: 'mozzafiato' as const, label: 'Cuando factura en Mozzafiato → promueve Casa Regina', state: promoMozz, setter: setPromoMozz, targetId: 'casaregina' as const },
+              { key: 'casaregina' as const, label: 'Cuando factura en Casa Regina → promueve Mozzafiato', state: promoRegina, setter: setPromoRegina, targetId: 'mozzafiato' as const },
+            ].map(({ key, label, state, setter, targetId }) => {
+              const other = NEGOCIOS[targetId]
+              const otherLogo = getLogo(other.logoKey)
+              return (
+                <div key={key} className="mb-6">
+                  <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: other.theme.accent }}>{label}</p>
+
+                  {/* Formulario */}
+                  <div className="bg-surface border border-white/10 rounded-xl p-4 mb-3 space-y-3">
+                    <div>
+                      <label className="text-xs text-muted block mb-1">Título</label>
+                      <input
+                        value={state.headline}
+                        onChange={e => setter(prev => ({ ...prev, headline: e.target.value }))}
+                        className="w-full bg-bg border border-white/10 rounded-lg px-3 py-2 text-sm text-white"
+                        placeholder="¿Buscas hospedaje...?"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted block mb-1">Descripción</label>
+                      <textarea
+                        value={state.tagline}
+                        onChange={e => setter(prev => ({ ...prev, tagline: e.target.value }))}
+                        rows={2}
+                        className="w-full bg-bg border border-white/10 rounded-lg px-3 py-2 text-sm text-white resize-none"
+                        placeholder="Texto descriptivo..."
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs text-muted block mb-1">Botón (CTA)</label>
+                        <input
+                          value={state.cta}
+                          onChange={e => setter(prev => ({ ...prev, cta: e.target.value }))}
+                          className="w-full bg-bg border border-white/10 rounded-lg px-3 py-2 text-sm text-white"
+                          placeholder="Síguenos..."
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted block mb-1">Link</label>
+                        <input
+                          value={state.link}
+                          onChange={e => setter(prev => ({ ...prev, link: e.target.value }))}
+                          className="w-full bg-bg border border-white/10 rounded-lg px-3 py-2 text-sm text-white"
+                          placeholder="https://..."
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Vista previa */}
+                  <p className="text-xs text-muted mb-2">Vista previa:</p>
+                  <div
+                    className="rounded-xl overflow-hidden border"
+                    style={{ borderColor: `${other.theme.accent}40`, background: other.theme.headerBg }}
+                  >
+                    <div className="p-4 text-center">
+                      <img src={otherLogo} alt={other.name} className="h-10 w-auto object-contain mx-auto mb-3" />
+                      <p className="text-sm font-bold mb-1" style={{ color: other.theme.headerText }}>
+                        {state.headline || 'Título...'}
+                      </p>
+                      <p className="text-xs leading-relaxed mb-3" style={{ color: `${other.theme.headerText}99` }}>
+                        {state.tagline || 'Descripción...'}
+                      </p>
+                      <span
+                        className="inline-block px-5 py-2 rounded-lg text-sm font-bold"
+                        style={{ background: other.theme.accent, color: other.theme.headerBg }}
+                      >
+                        {state.cta || 'Botón'} →
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+
+            <button
+              onClick={handleSavePromos}
+              disabled={savingPromos}
+              className="btn w-full text-sm font-bold py-3 rounded-xl transition-all"
+              style={{ background: savingPromos ? '#555' : '#22c55e', color: '#fff' }}
+            >
+              {savingPromos ? 'Guardando...' : promoSaved ? '✓ Guardado' : '💾 Guardar promos'}
+            </button>
           </>
         )}
       </div>

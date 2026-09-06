@@ -10,7 +10,7 @@ import { getLogo } from '../assets/logos'
 import { getNegocio, NEGOCIOS } from '../config/businesses'
 import type { NegocioId } from '../config/businesses'
 import { REGIMENES, USOS_CFDI, QUERY_KEYS, STALE_TIMES, SHEET_NAMES } from '../api/config'
-import { fetchClientes, fetchSolicitudes } from '../api/sheets'
+import { fetchClientes, fetchSolicitudes, fetchPromos } from '../api/sheets'
 import { batchAppend, timbrarFactura, updateStatus, cleanupFailed } from '../api/appscript'
 import type { TimbradoResult } from '../api/appscript'
 import { useQueryClient, useQuery } from '@tanstack/react-query'
@@ -42,18 +42,21 @@ const SUCCESS_MESSAGES = [
 ]
 
 // ── Cross-promo: si factura para negocio A, promueve negocio B
-const CROSS_PROMO: Record<string, { targetId: NegocioId; headline: string; tagline: string; cta: string }> = {
+// Defaults — se sobreescriben con datos dinámicos de la hoja 📢 Promos
+const CROSS_PROMO_DEFAULTS: Record<string, { targetId: NegocioId; headline: string; tagline: string; cta: string; link: string }> = {
   mozzafiato: {
     targetId: 'casaregina',
     headline: '¿Buscas hospedaje en Playa del Carmen?',
-    tagline: 'Casa Regina te espera con habitaciones de lujo, alberca y la mejor ubicación.',
-    cta: 'Conocer Casa Regina',
+    tagline: 'Casa Regina Hotel Boutique te espera con habitaciones de lujo y la mejor ubicación.',
+    cta: 'Síguenos en Facebook',
+    link: 'https://www.facebook.com/share/1HwxUyNepJ/',
   },
   casaregina: {
     targetId: 'mozzafiato',
     headline: '¿Se te antoja la mejor pizza artesanal?',
     tagline: 'Visita Mozzafiato — auténtica cocina italiana con horno de leña.',
-    cta: 'Conocer Mozzafiato',
+    cta: 'Síguenos en Facebook',
+    link: 'https://www.facebook.com/share/1EruEYRtUC/',
   },
 }
 
@@ -109,6 +112,18 @@ export function LlevarPage({ data }: LlevarPageProps) {
     queryFn: fetchSolicitudes,
     staleTime: 10_000,
   })
+
+  // Fetch promo dinámica para este negocio
+  const [promoData, setPromoData] = useState<(typeof CROSS_PROMO_DEFAULTS)[string] | null>(null)
+  useEffect(() => {
+    fetchPromos().then(rows => {
+      const match = rows.find(r => r.negocio === neg.id)
+      if (match && match.headline) {
+        const targetId = neg.id === 'mozzafiato' ? 'casaregina' : 'mozzafiato'
+        setPromoData({ targetId: targetId as NegocioId, headline: match.headline, tagline: match.tagline, cta: match.cta, link: match.link })
+      }
+    }).catch(() => {/* usar defaults */})
+  }, [neg.id])
 
   const existing: Solicitud | null = useMemo(() => {
     return solicitudes.find((s) =>
@@ -509,7 +524,7 @@ export function LlevarPage({ data }: LlevarPageProps) {
 
         {/* ── Cross-promo banner ── */}
         {(() => {
-          const promo = CROSS_PROMO[neg.id]
+          const promo = promoData ?? CROSS_PROMO_DEFAULTS[neg.id]
           if (!promo) return null
           const other = NEGOCIOS[promo.targetId]
           const otherLogo = getLogo(other.logoKey)
@@ -530,7 +545,7 @@ export function LlevarPage({ data }: LlevarPageProps) {
                   {promo.tagline}
                 </p>
                 <a
-                  href={other.id === 'casaregina' ? 'https://www.instagram.com/casareginaplaya/' : 'https://www.instagram.com/mozzafiatoamor/'}
+                  href={promo.link}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-block px-5 py-2 rounded-lg text-sm font-bold transition-transform active:scale-95"

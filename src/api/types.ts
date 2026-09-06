@@ -155,6 +155,15 @@ export interface TipoPago {
   label: string
 }
 
+// ── Promo cruzada entre negocios
+export interface PromoConfig {
+  negocio: string      // Col A — 'mozzafiato' | 'casaregina' (el que factura)
+  headline: string     // Col B
+  tagline: string      // Col C
+  cta: string          // Col D
+  link: string         // Col E
+}
+
 // ── Filtros para admin
 export type FilterStatus = 'all' | SolicitudStatus
-export type AdminTab = 'facturacion' | 'solicitudes' | 'clientes' | 'bitacora'
+export type AdminTab = 'facturacion' | 'solicitudes' | 'clientes' | 'bitacora' | 'promos'

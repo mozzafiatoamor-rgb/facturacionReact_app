@@ -140,6 +140,11 @@ export async function listInvoices(dateFrom: string, dateTo: string): Promise<Fa
   return res.invoices
 }
 
+// ── GUARDAR PROMOS ───────────────────────────────────────
+export async function savePromos(promos: { negocio: string; headline: string; tagline: string; cta: string; link: string }[]): Promise<void> {
+  await post({ action: 'savePromos', promos })
+}
+
 // ── LINKS CORTOS ──────────────────────────────────────────
 export interface LinkPayload {
   m: string   // mesa

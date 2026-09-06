@@ -279,6 +279,28 @@ function doPost(e) {
       if (!found) throw new Error('Link no encontrado: ' + code);
       result = { success: true, payload: JSON.parse(found) };
 
+    // ── savePromos: guarda/actualiza promos cruzadas en hoja 📢 Promos
+    } else if (data.action === 'savePromos') {
+      var promoSheet = ss.getSheetByName('📢 Promos');
+      if (!promoSheet) {
+        promoSheet = ss.insertSheet('📢 Promos');
+        promoSheet.appendRow(['Negocio', 'Headline', 'Tagline', 'CTA', 'Link']);
+      }
+      // Limpiar filas existentes (dejar header)
+      var lastPromoRow = promoSheet.getLastRow();
+      if (lastPromoRow > 1) {
+        promoSheet.getRange(2, 1, lastPromoRow - 1, 5).clearContent();
+      }
+      // Escribir nuevas promos
+      var promos = data.promos || [];
+      for (var pi = 0; pi < promos.length; pi++) {
+        var pr = promos[pi];
+        promoSheet.getRange(pi + 2, 1, 1, 5).setValues([[
+          pr.negocio || '', pr.headline || '', pr.tagline || '', pr.cta || '', pr.link || ''
+        ]]);
+      }
+      result = { success: true };
+
     } else {
       throw new Error('Acción desconocida: ' + data.action);
     }

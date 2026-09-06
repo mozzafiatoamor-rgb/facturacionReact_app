@@ -3,7 +3,7 @@
 // Sin CORS, rápido, con API Key pública (solo lectura)
 // ============================================================
 
-import type { Cliente, Solicitud, Usuario, BitacoraEntry, AppConfig } from './types'
+import type { Cliente, Solicitud, Usuario, BitacoraEntry, PromoConfig, AppConfig } from './types'
 import { SHEET_RANGES } from './config'
 
 function getConfig(): AppConfig {
@@ -83,6 +83,24 @@ export async function fetchUsuarios(): Promise<Usuario[]> {
     activo: String(r[4] ?? 'true').toUpperCase() !== 'FALSE',
     _row:   i + 2,
   }))
+}
+
+// ── PROMOS ─────────────────────────────────────────────────
+export async function fetchPromos(): Promise<PromoConfig[]> {
+  try {
+    const rows = await readRange(SHEET_RANGES.promos)
+    return rows
+      .filter(r => r[0] && r[1]) // necesita negocio + headline mínimo
+      .map(r => ({
+        negocio:  r[0] ?? '',
+        headline: r[1] ?? '',
+        tagline:  r[2] ?? '',
+        cta:      r[3] ?? '',
+        link:     r[4] ?? '',
+      }))
+  } catch {
+    return [] // la hoja puede no existir aún
+  }
 }
 
 // ── BITÁCORA ───────────────────────────────────────────────

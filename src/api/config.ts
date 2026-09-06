@@ -6,6 +6,7 @@ export const SHEET_NAMES = {
   solicitudes: '🧾 Solicitudes',
   usuarios:    '👤 Usuarios',
   bitacora:    '📜 Bitácora',
+  promos:      '📢 Promos',
 } as const
 
 // ── Rangos de lectura
@@ -14,6 +15,7 @@ export const SHEET_RANGES = {
   solicitudes: `${SHEET_NAMES.solicitudes}!A2:Q1000`,
   usuarios:    `${SHEET_NAMES.usuarios}!A2:E50`,
   bitacora:    `${SHEET_NAMES.bitacora}!A2:F500`,
+  promos:      `${SHEET_NAMES.promos}!A2:E10`,
 } as const
 
 // ── staleTime por tipo de dato (ms)
