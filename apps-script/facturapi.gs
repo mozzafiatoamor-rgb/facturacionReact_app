@@ -491,15 +491,15 @@ function timbrarFactura_(data) {
  *               '04' = Operación nominativa relacionada (sustituye)
  */
 function cancelInvoice_(invoiceId, motive, substitution) {
-  var payload = { motive: motive || '02' };
-  if (motive === '01' && substitution) {
-    payload.substitution = substitution;
+  var mot = motive || '02';
+  var url = FACTURAPI_BASE + '/invoices/' + invoiceId + '?motive=' + mot;
+  if (mot === '01' && substitution) {
+    url += '&substitution=' + encodeURIComponent(substitution);
   }
 
-  var response = UrlFetchApp.fetch(FACTURAPI_BASE + '/invoices/' + invoiceId, {
+  var response = UrlFetchApp.fetch(url, {
     method: 'delete',
     headers: facturApiHeaders_(),
-    payload: JSON.stringify(payload),
     muteHttpExceptions: true,
   });
 
