@@ -188,8 +188,18 @@ export function AdminPage({ onNavigate }: AdminPageProps) {
         setCancelAcuse({ uuid: cancelTarget.uuid, pdf: res.acusePdfBase64 })
       }
       toast('Factura cancelada correctamente')
+
+      // Marcar solicitud correspondiente como Cancelada en el sheet
+      const matchingSol = [...solicitudes]
+        .reverse() // más recientes primero
+        .find(s => s.rfc === cancelTarget.customerRfc && s.status === 'Procesada')
+      if (matchingSol) {
+        try {
+          await updateStatusMut.mutateAsync({ solId: matchingSol.id, status: 'Cancelada' })
+        } catch { /* best-effort */ }
+      }
+
       setCancelTarget(null)
-      // Auto-reload invoices to reflect new status
       loadInvoices()
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Error al cancelar', 'error')

@@ -514,7 +514,7 @@ function cancelInvoice_(invoiceId, motive, substitution) {
   var acusePdf = '';
   try {
     var acuseRes = UrlFetchApp.fetch(
-      FACTURAPI_BASE + '/invoices/' + invoiceId + '/cancellation_receipt',
+      FACTURAPI_BASE + '/invoices/' + invoiceId + '/cancellation_receipt/pdf',
       {
         method: 'get',
         headers: { 'Authorization': 'Bearer ' + getFacturapiKey_() },
@@ -545,7 +545,7 @@ function downloadCancellationReceipt_(invoiceId) {
   var acuseXml = '';
   try {
     var pdfRes = UrlFetchApp.fetch(
-      FACTURAPI_BASE + '/invoices/' + invoiceId + '/cancellation_receipt',
+      FACTURAPI_BASE + '/invoices/' + invoiceId + '/cancellation_receipt/pdf',
       { method: 'get', headers: { 'Authorization': 'Bearer ' + getFacturapiKey_() }, muteHttpExceptions: true }
     );
     if (pdfRes.getResponseCode() === 200) {
