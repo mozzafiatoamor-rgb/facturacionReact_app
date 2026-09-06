@@ -22,7 +22,7 @@ import {
 } from '../hooks/useSheets'
 import { fmt$, isToday } from '../utils/dates'
 import { encodeDespacho } from '../utils/llevar'
-import { listInvoices, savePromos } from '../api/appscript'
+import { listInvoices, savePromos, cancelInvoice } from '../api/appscript'
 import { fetchPromoRows, groupPromos } from '../api/sheets'
 import { NEGOCIOS } from '../config/businesses'
 import { getLogo } from '../assets/logos'
@@ -89,6 +89,12 @@ export function AdminPage({ onNavigate }: AdminPageProps) {
   const [invError, setInvError] = useState('')
   const [invSearch, setInvSearch] = useState('')
   const [invLoaded, setInvLoaded] = useState(false)
+
+  // ── Cancel invoice state ──
+  const [cancelTarget, setCancelTarget] = useState<FacturapiInvoice | null>(null)
+  const [cancelMotive, setCancelMotive] = useState('02')
+  const [cancelling, setCancelling] = useState(false)
+  const [cancelAcuse, setCancelAcuse] = useState<{ uuid: string; pdf: string } | null>(null)
 
   // ── Promos tab state ──
   interface PromoState { headline: string; tagline: string; buttons: { cta: string; link: string }[] }
@@ -170,6 +176,39 @@ export function AdminPage({ onNavigate }: AdminPageProps) {
       setLoadingInv(false)
     }
   }, [monthRange.from, monthRange.to])
+
+  async function handleCancelInvoice() {
+    if (!cancelTarget) return
+    setCancelling(true)
+    try {
+      const res = await cancelInvoice(cancelTarget.id, cancelMotive)
+      if (res.acusePdfBase64) {
+        setCancelAcuse({ uuid: cancelTarget.uuid, pdf: res.acusePdfBase64 })
+      }
+      toast('Factura cancelada correctamente')
+      // Reload invoices to reflect new status
+      setInvLoaded(false)
+      setCancelTarget(null)
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Error al cancelar', 'error')
+    } finally {
+      setCancelling(false)
+    }
+  }
+
+  function downloadAcuse() {
+    if (!cancelAcuse) return
+    const bin = atob(cancelAcuse.pdf)
+    const bytes = new Uint8Array(bin.length)
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+    const blob = new Blob([bytes], { type: 'application/pdf' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `Acuse_Cancelacion_${cancelAcuse.uuid.slice(0, 8)}.pdf`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
 
   // Auto-load when switching to facturacion tab or changing month
   const prevMonth = useMemo(() => monthRange.from, [monthRange.from])
@@ -424,13 +463,19 @@ export function AdminPage({ onNavigate }: AdminPageProps) {
                         <p className="text-xs text-muted">{formatDate(inv.date)}</p>
                       </div>
                     </div>
-                    <div className="flex flex-wrap gap-2 text-[10px] text-muted">
+                    <div className="flex flex-wrap gap-2 text-[10px] text-muted mb-2">
                       <span className="bg-surface2 rounded px-1.5 py-0.5">IVA: {fmt$(inv.iva)}</span>
                       {inv.isr > 0 && <span className="bg-red-500/10 text-red-400 rounded px-1.5 py-0.5">ISR: -{fmt$(inv.isr)}</span>}
                       {inv.ish > 0 && <span className="bg-blue-500/10 text-blue-400 rounded px-1.5 py-0.5">ISH: {fmt$(inv.ish)}</span>}
                       <span className="bg-surface2 rounded px-1.5 py-0.5">{PAYMENT_FORMS[String(inv.paymentForm)] || inv.paymentForm}</span>
                       <span className="bg-surface2 rounded px-1.5 py-0.5 font-mono">{inv.uuid.slice(0, 8)}...</span>
                     </div>
+                    <button
+                      onClick={() => { setCancelTarget(inv); setCancelMotive('02') }}
+                      className="text-[11px] px-3 py-1.5 rounded-lg bg-red-500/10 text-red-400 border border-red-500/20 font-medium hover:bg-red-500/20 transition-colors"
+                    >
+                      ✕ Cancelar factura
+                    </button>
                   </motion.div>
                 ))}
               </>
@@ -689,6 +734,79 @@ export function AdminPage({ onNavigate }: AdminPageProps) {
           </>
         )}
       </div>
+
+      {/* Modal cancelar factura */}
+      <Modal open={!!cancelTarget} onClose={() => { if (!cancelling) setCancelTarget(null) }} title="Cancelar Factura">
+        {cancelTarget && (
+          <div className="space-y-3">
+            <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3 text-center">
+              <p className="text-red-400 text-sm font-bold">⚠️ Esta acción no se puede deshacer</p>
+            </div>
+            <DetailRow label="Folio" value={`${cancelTarget.series}${cancelTarget.folioNumber}`} />
+            <DetailRow label="RFC" value={cancelTarget.customerRfc} />
+            <DetailRow label="Razón Social" value={cancelTarget.customerName} />
+            <DetailRow label="Total" value={fmt$(cancelTarget.total)} />
+            <DetailRow label="UUID" value={cancelTarget.uuid} />
+
+            <div className="pt-2">
+              <label className="text-xs text-muted block mb-1.5">Motivo de cancelación (SAT)</label>
+              <select
+                value={cancelMotive}
+                onChange={e => setCancelMotive(e.target.value)}
+                className="w-full bg-bg border border-white/10 rounded-lg px-3 py-2 text-sm text-white"
+              >
+                <option value="01">01 — Con relación (sustituir por otra)</option>
+                <option value="02">02 — Con errores sin relación</option>
+                <option value="03">03 — No se llevó a cabo la operación</option>
+                <option value="04">04 — Operación nominativa relacionada</option>
+              </select>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                onClick={handleCancelInvoice}
+                disabled={cancelling}
+                className="btn flex-1 bg-red-500/20 text-red-400 border border-red-500/30 font-bold text-sm disabled:opacity-50"
+              >
+                {cancelling ? 'Cancelando...' : '✕ Confirmar Cancelación'}
+              </button>
+              <button
+                onClick={() => setCancelTarget(null)}
+                disabled={cancelling}
+                className="btn flex-1 bg-surface2 text-muted border border-white/10 text-sm"
+              >
+                Regresar
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Modal acuse de cancelación */}
+      <Modal open={!!cancelAcuse} onClose={() => setCancelAcuse(null)} title="Acuse de Cancelación">
+        {cancelAcuse && (
+          <div className="space-y-4 text-center">
+            <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4">
+              <p className="text-emerald-400 text-lg font-bold mb-1">✅ Factura cancelada</p>
+              <p className="text-muted text-xs">UUID: {cancelAcuse.uuid}</p>
+            </div>
+            {cancelAcuse.pdf && (
+              <button
+                onClick={downloadAcuse}
+                className="btn w-full bg-accent/20 text-accent border border-accent/30 font-bold text-sm py-3"
+              >
+                📄 Descargar Acuse de Cancelación (PDF)
+              </button>
+            )}
+            <button
+              onClick={() => setCancelAcuse(null)}
+              className="btn w-full bg-surface2 text-muted border border-white/10 text-sm"
+            >
+              Cerrar
+            </button>
+          </div>
+        )}
+      </Modal>
 
       {/* Modal detalle de solicitud */}
       <Modal open={!!selected} onClose={() => setSelected(null)} title="Detalle de Solicitud">

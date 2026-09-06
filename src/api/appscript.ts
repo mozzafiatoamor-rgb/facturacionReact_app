@@ -140,6 +140,23 @@ export async function listInvoices(dateFrom: string, dateTo: string): Promise<Fa
   return res.invoices
 }
 
+// ── CANCELAR FACTURA (Facturapi) ─────────────────────────
+export interface CancelResult {
+  success: boolean
+  status: string
+  uuid: string
+  acusePdfBase64: string
+  error?: string
+}
+
+export async function cancelInvoice(
+  invoiceId: string,
+  motive = '02',
+  substitution = '',
+): Promise<CancelResult> {
+  return post<CancelResult>({ action: 'cancelInvoice', invoiceId, motive, substitution })
+}
+
 // ── GUARDAR PROMOS ───────────────────────────────────────
 export async function savePromos(promos: { negocio: string; headline: string; tagline: string; cta: string; link: string }[]): Promise<void> {
   await post({ action: 'savePromos', promos })

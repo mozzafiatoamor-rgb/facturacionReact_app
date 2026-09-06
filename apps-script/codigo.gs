@@ -238,6 +238,16 @@ function doPost(e) {
         xmlBase64: timbradoResult.xmlBase64,
       };
 
+    // ── cancelInvoice: cancela factura en Facturapi y devuelve acuse
+    } else if (data.action === 'cancelInvoice') {
+      var cancelResult = cancelInvoice_(data.invoiceId, data.motive || '02', data.substitution || '');
+      result = {
+        success: true,
+        status: cancelResult.status,
+        uuid: cancelResult.uuid,
+        acusePdfBase64: cancelResult.acusePdfBase64,
+      };
+
     // ── sendPreFactura: envía email de pre-factura (sin timbrar) para revisión
     } else if (data.action === 'sendPreFactura') {
       sendPreFactura_(data);

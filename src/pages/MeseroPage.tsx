@@ -27,6 +27,7 @@ interface MeseroPageProps {
 export function MeseroPage({ initial, onGenerarFactura, onBack, userName }: MeseroPageProps) {
   const { toast } = useToast()
   const [negocio,  setNegocio ] = useState(initial?.negocio  ?? '')
+  const [pendingNegocio, setPendingNegocio] = useState<string | null>(null)
   const [mesa,     setMesa    ] = useState(initial?.mesa     ?? '')
   const [monto,    setMonto   ] = useState(initial?.monto    ?? '')
   const [tipoPago, setTipoPago] = useState(initial?.tipoPago ?? '')
@@ -132,12 +133,12 @@ export function MeseroPage({ initial, onGenerarFactura, onBack, userName }: Mese
                 <p className="text-sm text-muted mt-1">Selecciona el establecimiento</p>
               </div>
 
-              <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-5">
                 {NEGOCIO_LIST.map((n) => (
                   <motion.button
                     key={n.id}
                     whileTap={{ scale: 0.97 }}
-                    onClick={() => setNegocio(n.id)}
+                    onClick={() => setPendingNegocio(n.id)}
                     className="border-2 border-white/10 rounded-xl p-5 flex items-center gap-4 transition-colors"
                     style={{ background: n.theme.headerBg, borderColor: `${n.theme.accent}30` }}
                   >
@@ -154,6 +155,59 @@ export function MeseroPage({ initial, onGenerarFactura, onBack, userName }: Mese
                   </motion.button>
                 ))}
               </div>
+
+              {/* Popup de confirmación de negocio */}
+              <AnimatePresence>
+                {pendingNegocio && (() => {
+                  const pn = getNegocio(pendingNegocio)
+                  const pLogo = getLogo(pn.logoKey)
+                  return (
+                    <motion.div
+                      key="confirm-overlay"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center px-6"
+                      onClick={() => setPendingNegocio(null)}
+                    >
+                      <motion.div
+                        initial={{ scale: 0.85, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        exit={{ scale: 0.85, opacity: 0 }}
+                        transition={{ type: 'spring', damping: 20 }}
+                        className="w-full max-w-xs rounded-2xl overflow-hidden border-2"
+                        style={{ background: pn.theme.headerBg, borderColor: `${pn.theme.accent}50` }}
+                        onClick={e => e.stopPropagation()}
+                      >
+                        <div className="p-6 text-center">
+                          <img src={pLogo} alt={pn.name} className="h-16 w-auto object-contain mx-auto mb-4" />
+                          <p className="text-lg font-bold mb-1" style={{ color: pn.theme.headerText }}>
+                            ¿Generar factura para {pn.name}?
+                          </p>
+                          <p className="text-xs mb-6" style={{ color: `${pn.theme.headerText}80` }}>
+                            Confirma que seleccionaste el negocio correcto
+                          </p>
+                          <div className="flex flex-col gap-3">
+                            <button
+                              onClick={() => { setNegocio(pendingNegocio); setPendingNegocio(null) }}
+                              className="btn w-full text-sm font-bold py-3 rounded-xl"
+                              style={{ background: pn.theme.accent, color: pn.theme.headerBg }}
+                            >
+                              Sí, es {pn.name}
+                            </button>
+                            <button
+                              onClick={() => setPendingNegocio(null)}
+                              className="btn w-full text-sm font-medium py-3 rounded-xl bg-white/10 text-white"
+                            >
+                              Cancelar
+                            </button>
+                          </div>
+                        </div>
+                      </motion.div>
+                    </motion.div>
+                  )
+                })()}
+              </AnimatePresence>
             </motion.div>
           )}
 

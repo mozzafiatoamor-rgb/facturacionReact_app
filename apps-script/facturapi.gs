@@ -484,6 +484,58 @@ function timbrarFactura_(data) {
 }
 
 /**
+ * Cancela una factura en Facturapi y devuelve el acuse de cancelación.
+ * Motivos SAT: '01' = Comprobante emitido con errores con relación
+ *               '02' = Comprobante emitido con errores sin relación
+ *               '03' = No se llevó a cabo la operación
+ *               '04' = Operación nominativa relacionada (sustituye)
+ */
+function cancelInvoice_(invoiceId, motive, substitution) {
+  var payload = { motive: motive || '02' };
+  if (motive === '01' && substitution) {
+    payload.substitution = substitution;
+  }
+
+  var response = UrlFetchApp.fetch(FACTURAPI_BASE + '/invoices/' + invoiceId, {
+    method: 'delete',
+    headers: facturApiHeaders_(),
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true,
+  });
+
+  var code = response.getResponseCode();
+  var body = JSON.parse(response.getContentText());
+
+  if (code !== 200 && code !== 201) {
+    throw new Error('Error cancelando factura: ' + (body.message || JSON.stringify(body)));
+  }
+
+  // Descargar acuse de cancelación en PDF
+  var acusePdf = '';
+  try {
+    var acuseRes = UrlFetchApp.fetch(
+      FACTURAPI_BASE + '/invoices/' + invoiceId + '/cancellation_receipt',
+      {
+        method: 'get',
+        headers: { 'Authorization': 'Bearer ' + getFacturapiKey_() },
+        muteHttpExceptions: true,
+      }
+    );
+    if (acuseRes.getResponseCode() === 200) {
+      acusePdf = Utilities.base64Encode(acuseRes.getContent());
+    }
+  } catch (e) {
+    Logger.log('No se pudo descargar acuse: ' + e.message);
+  }
+
+  return {
+    status: body.cancellation_status || body.status || 'pending',
+    uuid: body.uuid || '',
+    acusePdfBase64: acusePdf,
+  };
+}
+
+/**
  * Envía un email de pre-factura (sin timbrar) al cliente para que revise los datos.
  */
 function sendPreFactura_(data) {
