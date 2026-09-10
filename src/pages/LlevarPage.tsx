@@ -132,12 +132,16 @@ export function LlevarPage({ data }: LlevarPageProps) {
   }, [neg.id])
 
   const existing: Solicitud | null = useMemo(() => {
-    return solicitudes.find((s) =>
+    // Buscar por mesa + monto + mesero + negocio (sin fecha, porque
+    // data.fecha es cuando el mesero creó el link, y s.fecha es cuando
+    // el cliente envió el form — casi nunca coinciden)
+    const matches = solicitudes.filter((s) =>
       s.mesa === data.mesa &&
       s.monto === data.monto &&
-      s.fecha === data.fecha &&
-      s.mesero === data.mesero
-    ) ?? null
+      s.mesero === data.mesero &&
+      s.negocio === data.negocio
+    )
+    return matches.length > 0 ? matches[matches.length - 1] : null
   }, [solicitudes, data])
 
   const [rfcInput,  setRfcInput ] = useState('')

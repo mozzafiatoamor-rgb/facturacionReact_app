@@ -157,13 +157,33 @@ function mapProductDescription_(negocio) {
 
 /**
  * Crea o encuentra un cliente en Facturapi.
- * Si ya existe un cliente con ese RFC, Facturapi regresa el existente (200).
- * Si es nuevo, regresa 201.
+ * Primero busca por RFC — si ya existe, lo reutiliza (evita error de nombre).
+ * Si no existe, lo crea nuevo.
  */
 function findOrCreateCustomer_(data) {
+  var rfc = data.rfc.replace(/\s/g, '').toUpperCase();
+
+  // 1. Buscar cliente existente por RFC
+  try {
+    var searchRes = UrlFetchApp.fetch(
+      FACTURAPI_BASE + '/customers?tax_id=' + encodeURIComponent(rfc),
+      { method: 'get', headers: facturApiHeaders_(), muteHttpExceptions: true }
+    );
+    if (searchRes.getResponseCode() === 200) {
+      var searchBody = JSON.parse(searchRes.getContentText());
+      var existing = searchBody.data || [];
+      if (existing.length > 0) {
+        return existing[0].id; // reutilizar cliente existente
+      }
+    }
+  } catch (e) {
+    Logger.log('Error buscando cliente por RFC, intentando crear: ' + e.message);
+  }
+
+  // 2. No existe — crear nuevo
   var payload = {
     legal_name: data.razonSocial,
-    tax_id: data.rfc,
+    tax_id: rfc,
     tax_system: data.regimen.split(' - ')[0].trim(), // solo el código: "626"
     email: data.email,
     address: {
