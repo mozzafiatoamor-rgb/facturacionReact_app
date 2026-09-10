@@ -420,6 +420,50 @@ export function LlevarPage({ data }: LlevarPageProps) {
               💬 Contactar a {neg.name} por WhatsApp
             </motion.button>
           )}
+
+          {/* ── Cross-promo banner ── */}
+          {(() => {
+            const promo = promoData ?? CROSS_PROMO_DEFAULTS[neg.id]
+            if (!promo) return null
+            const other = NEGOCIOS[promo.targetId]
+            const otherLogo = getLogo(other.logoKey)
+            return (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4 }}
+                className="mt-6 rounded-xl overflow-hidden border"
+                style={{ borderColor: `${other.theme.accent}40`, background: other.theme.headerBg }}
+              >
+                <div className="p-4 text-center">
+                  <img src={otherLogo} alt={other.name} className="h-10 w-auto object-contain mx-auto mb-3" />
+                  <p className="text-sm font-bold mb-1" style={{ color: other.theme.headerText }}>
+                    {promo.headline}
+                  </p>
+                  <p className="text-xs leading-relaxed mb-3" style={{ color: `${other.theme.headerText}99` }}>
+                    {promo.tagline}
+                  </p>
+                  <div className="flex flex-col gap-2">
+                    {promo.buttons.map((btn, bi) => (
+                      <a
+                        key={bi}
+                        href={btn.link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-block px-5 py-2 rounded-lg text-sm font-bold transition-transform active:scale-95"
+                        style={bi === 0
+                          ? { background: other.theme.accent, color: other.theme.headerBg }
+                          : { background: `${other.theme.accent}20`, color: other.theme.accent, border: `1px solid ${other.theme.accent}40` }
+                        }
+                      >
+                        {btn.cta} →
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              </motion.div>
+            )
+          })()}
         </div>
       </div>
     )
