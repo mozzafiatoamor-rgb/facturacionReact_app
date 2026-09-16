@@ -15,7 +15,7 @@ import { batchAppend, timbrarFactura, updateStatus, cleanupFailed } from '../api
 import type { TimbradoResult } from '../api/appscript'
 import { useQueryClient, useQuery } from '@tanstack/react-query'
 import { generateId } from '../utils/ids'
-import { now, fmt$ } from '../utils/dates'
+import { now, fmt$, parseDate } from '../utils/dates'
 import type { LlevarData } from '../utils/llevar'
 import type { Cliente, Solicitud, BatchItem } from '../api/types'
 
@@ -132,15 +132,26 @@ export function LlevarPage({ data }: LlevarPageProps) {
   }, [neg.id])
 
   const existing: Solicitud | null = useMemo(() => {
-    // Buscar por mesa + monto + mesero + negocio (sin fecha, porque
-    // data.fecha es cuando el mesero creó el link, y s.fecha es cuando
-    // el cliente envió el form — casi nunca coinciden)
-    const matches = solicitudes.filter((s) =>
-      s.mesa === data.mesa &&
-      s.monto === data.monto &&
-      s.mesero === data.mesero &&
-      s.negocio === data.negocio
-    )
+    // Buscar por mesa + monto + mesero + negocio + ventana de ±2 días
+    // data.fecha = cuando el mesero creó el link
+    // s.fecha    = cuando el cliente envió el form
+    // Pueden diferir por 1–2 días, pero no debemos matchear solicitudes
+    // viejas que casualmente tengan los mismos datos.
+    const linkDate = parseDate(data.fecha)
+    const matches = solicitudes.filter((s) => {
+      if (s.mesa !== data.mesa || s.monto !== data.monto ||
+          s.mesero !== data.mesero || s.negocio !== data.negocio) return false
+      // Filtro de ventana temporal: ±2 días
+      if (linkDate) {
+        const solDate = parseDate(s.fecha)
+        if (solDate) {
+          const diffMs = Math.abs(linkDate.getTime() - solDate.getTime())
+          const diffDays = diffMs / (1000 * 60 * 60 * 24)
+          if (diffDays > 2) return false
+        }
+      }
+      return true
+    })
     return matches.length > 0 ? matches[matches.length - 1] : null
   }, [solicitudes, data])
 
