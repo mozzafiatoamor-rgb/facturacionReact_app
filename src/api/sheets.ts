@@ -3,7 +3,7 @@
 // Sin CORS, rápido, con API Key pública (solo lectura)
 // ============================================================
 
-import type { Cliente, Solicitud, Usuario, BitacoraEntry, PromoRow, PromoGrouped, AppConfig } from './types'
+import type { Cliente, Solicitud, Usuario, BitacoraEntry, PromoRow, PromoGrouped, AppConfig, LinkRecord } from './types'
 import { SHEET_RANGES } from './config'
 
 function getConfig(): AppConfig {
@@ -120,6 +120,34 @@ export function groupPromos(rows: PromoRow[]): PromoGrouped[] {
     }
   }
   return Array.from(map.values())
+}
+
+// ── LINKS (hoja 🔗 Links) ─────────────────────────────────
+export async function fetchLinks(): Promise<LinkRecord[]> {
+  try {
+    const rows = await readRange('🔗 Links!A2:D5000')
+    const now = Date.now()
+    return rows.map((r) => {
+      let payload: Record<string, string | number> = {}
+      try { payload = JSON.parse(r[1] ?? '{}') } catch { /* skip */ }
+      const expTs = typeof payload.e === 'number' ? payload.e : 0
+      return {
+        code:     r[0] ?? '',
+        mesa:     String(payload.m ?? ''),
+        monto:    String(payload.$ ?? ''),
+        tipoPago: String(payload.t ?? ''),
+        mesero:   String(payload.w ?? ''),
+        fecha:    String(payload.f ?? ''),
+        hora:     String(payload.h ?? ''),
+        negocio:  String(payload.n ?? 'mozzafiato'),
+        creado:   r[2] ?? '',
+        expira:   r[3] ?? '',
+        expired:  expTs > 0 && now > expTs,
+      }
+    }).reverse() // más recientes primero
+  } catch {
+    return []
+  }
 }
 
 // ── BITÁCORA ───────────────────────────────────────────────

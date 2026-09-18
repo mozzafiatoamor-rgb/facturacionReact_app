@@ -175,4 +175,19 @@ export interface PromoGrouped {
 
 // ── Filtros para admin
 export type FilterStatus = 'all' | SolicitudStatus
-export type AdminTab = 'facturacion' | 'solicitudes' | 'clientes' | 'bitacora' | 'promos'
+export type AdminTab = 'facturacion' | 'solicitudes' | 'clientes' | 'bitacora' | 'promos' | 'mensajes'
+
+// ── Link guardado en hoja 🔗 Links
+export interface LinkRecord {
+  code: string
+  mesa: string
+  monto: string
+  tipoPago: string
+  mesero: string
+  fecha: string
+  hora: string
+  negocio: string
+  creado: string
+  expira: string
+  expired: boolean
+}

@@ -21,18 +21,19 @@ import {
   useInvalidate,
 } from '../hooks/useSheets'
 import { fmt$, isToday } from '../utils/dates'
-import { encodeDespacho } from '../utils/llevar'
+import { encodeDespacho, buildWhatsAppMessage } from '../utils/llevar'
 import { listInvoices, savePromos, cancelInvoice, downloadAcuse } from '../api/appscript'
-import { fetchPromoRows, groupPromos } from '../api/sheets'
+import { fetchPromoRows, groupPromos, fetchLinks } from '../api/sheets'
 import { NEGOCIOS } from '../config/businesses'
 import { getLogo } from '../assets/logos'
 import type { FacturapiInvoice } from '../api/appscript'
-import type { AdminTab, FilterStatus, Solicitud } from '../api/types'
+import type { AdminTab, FilterStatus, Solicitud, LinkRecord } from '../api/types'
 
 const TABS: { value: AdminTab; label: string }[] = [
   { value: 'facturacion', label: '📊 Facturación' },
   { value: 'solicitudes', label: '🧾 Solicitudes' },
   { value: 'clientes',    label: '👥 Clientes'    },
+  { value: 'mensajes',    label: '💬 Mensajes'    },
   { value: 'bitacora',    label: '📜 Bitácora'    },
   { value: 'promos',      label: '📢 Promos'      },
 ]
@@ -118,6 +119,12 @@ export function AdminPage({ onNavigate }: AdminPageProps) {
   const [savingPromos, setSavingPromos] = useState(false)
   const [promoSaved, setPromoSaved] = useState(false)
 
+  // ── Mensajes tab state ──
+  const [links, setLinks] = useState<LinkRecord[]>([])
+  const [linksLoaded, setLinksLoaded] = useState(false)
+  const [loadingLinks, setLoadingLinks] = useState(false)
+  const [copiedLinkId, setCopiedLinkId] = useState<string | null>(null)
+
   useEffect(() => {
     if (tab === 'promos' && !promosLoaded) {
       fetchPromoRows().then(rows => {
@@ -134,6 +141,54 @@ export function AdminPage({ onNavigate }: AdminPageProps) {
       }).catch(() => setPromosLoaded(true))
     }
   }, [tab, promosLoaded])
+
+  // ── Fetch links al cambiar a tab Mensajes ──
+  useEffect(() => {
+    if (tab === 'mensajes' && !linksLoaded) {
+      setLoadingLinks(true)
+      fetchLinks()
+        .then(setLinks)
+        .catch(() => {})
+        .finally(() => { setLinksLoaded(true); setLoadingLinks(false) })
+    }
+  }, [tab, linksLoaded])
+
+  function reconstructLlevarUrl(code: string): string {
+    const cfg = JSON.parse(localStorage.getItem('_mzf_facturas_config') ?? '{}')
+    const match = (cfg.scriptUrl ?? '').match(/\/macros\/s\/([^/]+)\/exec/)
+    const deployId = match?.[1] ?? ''
+    return `${window.location.origin}${import.meta.env.BASE_URL}?llevar=${code}.${deployId}`
+  }
+
+  async function handleCopyMessage(link: LinkRecord) {
+    const neg = NEGOCIOS[link.negocio as keyof typeof NEGOCIOS]
+    const url = reconstructLlevarUrl(link.code)
+    const msg = buildWhatsAppMessage(url, link.monto, neg?.name ?? 'Mozzafiato')
+    await navigator.clipboard.writeText(msg)
+    setCopiedLinkId(link.code)
+    toast('Mensaje copiado al portapapeles')
+    setTimeout(() => setCopiedLinkId(null), 2500)
+  }
+
+  async function handleCopyLink(link: LinkRecord) {
+    const url = reconstructLlevarUrl(link.code)
+    await navigator.clipboard.writeText(url)
+    setCopiedLinkId(link.code + '_link')
+    toast('Link copiado')
+    setTimeout(() => setCopiedLinkId(null), 2500)
+  }
+
+  const filteredLinks = useMemo(() => {
+    if (!search) return links
+    const q = search.toLowerCase()
+    return links.filter(l =>
+      l.mesa.toLowerCase().includes(q) ||
+      l.mesero.toLowerCase().includes(q) ||
+      l.monto.includes(q) ||
+      l.negocio.toLowerCase().includes(q) ||
+      l.fecha.includes(q)
+    )
+  }, [links, search])
 
   async function handleSavePromos() {
     setSavingPromos(true)
@@ -430,7 +485,7 @@ export function AdminPage({ onNavigate }: AdminPageProps) {
       {/* Contenido */}
       <div className="flex-1 px-4 pt-4 pb-24 overflow-y-auto">
         {tab !== 'facturacion' && tab !== 'promos' && (
-          <SearchBar value={search} onChange={setSearch} placeholder="Buscar..." />
+          <SearchBar value={search} onChange={setSearch} placeholder={tab === 'mensajes' ? 'Buscar por mesa, mesero, monto...' : 'Buscar...'} />
         )}
 
         {/* ── Facturación ─── */}
@@ -736,6 +791,75 @@ export function AdminPage({ onNavigate }: AdminPageProps) {
                 </div>
               </motion.div>
             ))}
+          </>
+        )}
+
+        {/* ── Mensajes ─── */}
+        {tab === 'mensajes' && (
+          <>
+            {loadingLinks && <SkeletonList n={4} />}
+            {!loadingLinks && filteredLinks.length === 0 && (
+              <EmptyState icon="💬" title={search ? 'Sin resultados' : 'No hay mensajes aún'}
+                subtitle={search ? 'Prueba con otra búsqueda' : 'Genera un link de facturación para que aparezca aquí'} />
+            )}
+            {filteredLinks.map((link, i) => {
+              const neg = NEGOCIOS[link.negocio as keyof typeof NEGOCIOS]
+              const negName = neg?.name ?? link.negocio
+              const createdDate = link.creado ? new Date(link.creado).toLocaleString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : link.fecha
+              return (
+                <motion.div
+                  key={link.code}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: Math.min(i * 0.02, 0.3) }}
+                  className={`bg-surface border rounded-xl px-4 py-3 mb-2 ${link.expired ? 'border-white/5 opacity-60' : 'border-white/10'}`}
+                >
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-bold text-white">
+                          {neg?.labelMesa ?? 'Mesa'} {link.mesa}
+                        </p>
+                        <span className="text-xs px-2 py-0.5 rounded-full"
+                          style={{ background: neg?.theme.accent + '20', color: neg?.theme.accent }}>
+                          {negName}
+                        </span>
+                        {link.expired && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/20 text-red-400">Expirado</span>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted mt-0.5">
+                        {fmt$(link.monto)} · {link.tipoPago} · {link.mesero}
+                      </p>
+                      <p className="text-[10px] text-muted/60 mt-0.5">{createdDate}</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleCopyMessage(link)}
+                      className="flex-1 text-xs font-bold py-2 rounded-lg transition-all active:scale-95"
+                      style={{
+                        background: copiedLinkId === link.code ? '#22c55e' : (neg?.theme.accent ?? '#888'),
+                        color: neg?.theme.headerBg ?? '#000',
+                      }}
+                    >
+                      {copiedLinkId === link.code ? '✓ Copiado' : '📋 Copiar mensaje'}
+                    </button>
+                    <button
+                      onClick={() => handleCopyLink(link)}
+                      className="text-xs font-bold py-2 px-3 rounded-lg border border-white/10 bg-surface2 text-muted transition-all active:scale-95"
+                    >
+                      {copiedLinkId === link.code + '_link' ? '✓' : '🔗'}
+                    </button>
+                  </div>
+                </motion.div>
+              )
+            })}
+            {!loadingLinks && links.length > 0 && (
+              <p className="text-center text-xs text-muted/50 mt-4">
+                {links.length} mensaje{links.length !== 1 ? 's' : ''} en total
+              </p>
+            )}
           </>
         )}
 
