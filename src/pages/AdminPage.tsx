@@ -800,7 +800,7 @@ export function AdminPage({ onNavigate }: AdminPageProps) {
             {loadingLinks && <SkeletonList n={4} />}
             {!loadingLinks && filteredLinks.length === 0 && (
               <EmptyState icon="💬" title={search ? 'Sin resultados' : 'No hay mensajes aún'}
-                subtitle={search ? 'Prueba con otra búsqueda' : 'Genera un link de facturación para que aparezca aquí'} />
+                message={search ? 'Prueba con otra búsqueda' : 'Genera un link de facturación para que aparezca aquí'} />
             )}
             {filteredLinks.map((link, i) => {
               const neg = NEGOCIOS[link.negocio as keyof typeof NEGOCIOS]
