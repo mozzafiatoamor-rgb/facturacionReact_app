@@ -71,6 +71,56 @@ const STATUS_CONFIG: Record<string, { color: string; bg: string; label: string }
   Cancelada:  { color: 'text-red-400', bg: 'bg-red-400/10 border-red-400/30', label: '❌ Cancelada' },
 }
 
+// ── Componente reutilizable de cross-promo
+function PromoBanner({ promo, compact, delay = 0.4, className = '' }: {
+  promo: PromoDisplay | null
+  compact?: boolean
+  delay?: number
+  className?: string
+}) {
+  if (!promo) return null
+  const other = NEGOCIOS[promo.targetId]
+  const otherLogo = getLogo(other.logoKey)
+  if (compact) {
+    return (
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay }}
+        className={`rounded-xl overflow-hidden border ${className}`}
+        style={{ borderColor: `${other.theme.accent}30`, background: other.theme.headerBg }}>
+        <a href={promo.buttons[0]?.link} target="_blank" rel="noopener noreferrer"
+          className="flex items-center gap-3 p-3 transition-transform active:scale-[0.98]">
+          <img src={otherLogo} alt={other.name} className="h-8 w-auto object-contain flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-bold truncate" style={{ color: other.theme.headerText }}>{promo.headline}</p>
+            <p className="text-[10px] truncate" style={{ color: `${other.theme.headerText}80` }}>{promo.tagline}</p>
+          </div>
+          <span className="text-xs font-bold flex-shrink-0" style={{ color: other.theme.accent }}>→</span>
+        </a>
+      </motion.div>
+    )
+  }
+  return (
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay }}
+      className={`rounded-xl overflow-hidden border ${className}`}
+      style={{ borderColor: `${other.theme.accent}40`, background: other.theme.headerBg }}>
+      <div className="p-4 text-center">
+        <img src={otherLogo} alt={other.name} className="h-10 w-auto object-contain mx-auto mb-3" />
+        <p className="text-sm font-bold mb-1" style={{ color: other.theme.headerText }}>{promo.headline}</p>
+        <p className="text-xs leading-relaxed mb-3" style={{ color: `${other.theme.headerText}99` }}>{promo.tagline}</p>
+        <div className="flex flex-col gap-2">
+          {promo.buttons.map((btn, bi) => (
+            <a key={bi} href={btn.link} target="_blank" rel="noopener noreferrer"
+              className="inline-block px-5 py-2 rounded-lg text-sm font-bold transition-transform active:scale-95"
+              style={bi === 0
+                ? { background: other.theme.accent, color: other.theme.headerBg }
+                : { background: `${other.theme.accent}20`, color: other.theme.accent, border: `1px solid ${other.theme.accent}40` }
+              }>{btn.cta} →</a>
+          ))}
+        </div>
+      </div>
+    </motion.div>
+  )
+}
+
 async function withRetry<T>(fn: () => Promise<T>, maxRetries = 3): Promise<T> {
   let lastErr: unknown
   for (let i = 0; i < maxRetries; i++) {
@@ -433,48 +483,7 @@ export function LlevarPage({ data }: LlevarPageProps) {
           )}
 
           {/* ── Cross-promo banner ── */}
-          {(() => {
-            const promo = promoData ?? CROSS_PROMO_DEFAULTS[neg.id]
-            if (!promo) return null
-            const other = NEGOCIOS[promo.targetId]
-            const otherLogo = getLogo(other.logoKey)
-            return (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.4 }}
-                className="mt-6 rounded-xl overflow-hidden border"
-                style={{ borderColor: `${other.theme.accent}40`, background: other.theme.headerBg }}
-              >
-                <div className="p-4 text-center">
-                  <img src={otherLogo} alt={other.name} className="h-10 w-auto object-contain mx-auto mb-3" />
-                  <p className="text-sm font-bold mb-1" style={{ color: other.theme.headerText }}>
-                    {promo.headline}
-                  </p>
-                  <p className="text-xs leading-relaxed mb-3" style={{ color: `${other.theme.headerText}99` }}>
-                    {promo.tagline}
-                  </p>
-                  <div className="flex flex-col gap-2">
-                    {promo.buttons.map((btn, bi) => (
-                      <a
-                        key={bi}
-                        href={btn.link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-block px-5 py-2 rounded-lg text-sm font-bold transition-transform active:scale-95"
-                        style={bi === 0
-                          ? { background: other.theme.accent, color: other.theme.headerBg }
-                          : { background: `${other.theme.accent}20`, color: other.theme.accent, border: `1px solid ${other.theme.accent}40` }
-                        }
-                      >
-                        {btn.cta} →
-                      </a>
-                    ))}
-                  </div>
-                </div>
-              </motion.div>
-            )
-          })()}
+          <PromoBanner promo={promoData ?? CROSS_PROMO_DEFAULTS[neg.id]} delay={0.4} className="mt-6" />
         </div>
       </div>
     )
@@ -588,48 +597,7 @@ export function LlevarPage({ data }: LlevarPageProps) {
         )}
 
         {/* ── Cross-promo banner ── */}
-        {(() => {
-          const promo = promoData ?? CROSS_PROMO_DEFAULTS[neg.id]
-          if (!promo) return null
-          const other = NEGOCIOS[promo.targetId]
-          const otherLogo = getLogo(other.logoKey)
-          return (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.6 }}
-              className="w-full max-w-[300px] mt-6 rounded-xl overflow-hidden border"
-              style={{ borderColor: `${other.theme.accent}40`, background: other.theme.headerBg }}
-            >
-              <div className="p-4 text-center">
-                <img src={otherLogo} alt={other.name} className="h-10 w-auto object-contain mx-auto mb-3" />
-                <p className="text-sm font-bold mb-1" style={{ color: other.theme.headerText }}>
-                  {promo.headline}
-                </p>
-                <p className="text-xs leading-relaxed mb-3" style={{ color: `${other.theme.headerText}99` }}>
-                  {promo.tagline}
-                </p>
-                <div className="flex flex-col gap-2">
-                  {promo.buttons.map((btn, bi) => (
-                    <a
-                      key={bi}
-                      href={btn.link}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-block px-5 py-2 rounded-lg text-sm font-bold transition-transform active:scale-95"
-                      style={bi === 0
-                        ? { background: other.theme.accent, color: other.theme.headerBg }
-                        : { background: `${other.theme.accent}20`, color: other.theme.accent, border: `1px solid ${other.theme.accent}40` }
-                      }
-                    >
-                      {btn.cta} →
-                    </a>
-                  ))}
-                </div>
-              </div>
-            </motion.div>
-          )
-        })()}
+        <PromoBanner promo={promoData ?? CROSS_PROMO_DEFAULTS[neg.id]} delay={0.6} className="w-full max-w-[300px] mt-6" />
       </div>
     )
   }
@@ -664,6 +632,9 @@ export function LlevarPage({ data }: LlevarPageProps) {
           </div>
           <p className="text-xs text-muted mt-2">{neg.labelMesero}: {data.mesero}</p>
         </motion.div>
+
+        {/* ── Cross-promo banner arriba del formulario (compacto) ── */}
+        <PromoBanner promo={promoData ?? CROSS_PROMO_DEFAULTS[neg.id]} compact delay={0.15} className="mb-5" />
 
         {sendError && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
@@ -847,6 +818,9 @@ export function LlevarPage({ data }: LlevarPageProps) {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* ── Cross-promo banner abajo del formulario (completo) ── */}
+        <PromoBanner promo={promoData ?? CROSS_PROMO_DEFAULTS[neg.id]} delay={0.3} className="mt-6" />
       </div>
     </div>
   )
