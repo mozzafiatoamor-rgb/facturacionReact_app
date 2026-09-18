@@ -98,23 +98,33 @@ function PromoBanner({ promo, compact, delay = 0.4, className = '' }: {
       </motion.div>
     )
   }
+  const accent = other.theme.accent
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay }}
-      className={`rounded-xl overflow-hidden border ${className}`}
-      style={{ borderColor: `${other.theme.accent}40`, background: other.theme.headerBg }}>
-      <div className="p-4 text-center">
-        <img src={otherLogo} alt={other.name} className="h-10 w-auto object-contain mx-auto mb-3" />
-        <p className="text-sm font-bold mb-1" style={{ color: other.theme.headerText }}>{promo.headline}</p>
-        <p className="text-xs leading-relaxed mb-3" style={{ color: `${other.theme.headerText}99` }}>{promo.tagline}</p>
-        <div className="flex flex-col gap-2">
-          {promo.buttons.map((btn, bi) => (
-            <a key={bi} href={btn.link} target="_blank" rel="noopener noreferrer"
-              className="inline-block px-5 py-2 rounded-lg text-sm font-bold transition-transform active:scale-95"
-              style={bi === 0
-                ? { background: other.theme.accent, color: other.theme.headerBg }
-                : { background: `${other.theme.accent}20`, color: other.theme.accent, border: `1px solid ${other.theme.accent}40` }
-              }>{btn.cta} →</a>
-          ))}
+      className={`relative rounded-xl overflow-visible ${className}`}>
+      {/* ── Neon glow beneath ── */}
+      <motion.div
+        className="absolute -bottom-2 left-[10%] right-[10%] h-6 rounded-full blur-xl pointer-events-none"
+        style={{ background: accent }}
+        animate={{ opacity: [0.25, 0.5, 0.25] }}
+        transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
+      />
+      <div className="relative rounded-xl overflow-hidden border"
+        style={{ borderColor: `${accent}40`, background: other.theme.headerBg }}>
+        <div className="p-4 text-center">
+          <img src={otherLogo} alt={other.name} className="h-10 w-auto object-contain mx-auto mb-3" />
+          <p className="text-sm font-bold mb-1" style={{ color: other.theme.headerText }}>{promo.headline}</p>
+          <p className="text-xs leading-relaxed mb-3" style={{ color: `${other.theme.headerText}99` }}>{promo.tagline}</p>
+          <div className="flex flex-col gap-2">
+            {promo.buttons.map((btn, bi) => (
+              <a key={bi} href={btn.link} target="_blank" rel="noopener noreferrer"
+                className="inline-block px-5 py-2 rounded-lg text-sm font-bold transition-transform active:scale-95"
+                style={bi === 0
+                  ? { background: accent, color: other.theme.headerBg }
+                  : { background: `${accent}20`, color: accent, border: `1px solid ${accent}40` }
+                }>{btn.cta} →</a>
+            ))}
+          </div>
         </div>
       </div>
     </motion.div>
@@ -632,9 +642,6 @@ export function LlevarPage({ data }: LlevarPageProps) {
           </div>
           <p className="text-xs text-muted mt-2">{neg.labelMesero}: {data.mesero}</p>
         </motion.div>
-
-        {/* ── Cross-promo banner arriba del formulario (compacto) ── */}
-        <PromoBanner promo={promoData ?? CROSS_PROMO_DEFAULTS[neg.id]} compact delay={0.15} className="mb-5" />
 
         {sendError && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
