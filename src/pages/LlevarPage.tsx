@@ -11,7 +11,7 @@ import { getNegocio, NEGOCIOS } from '../config/businesses'
 import type { NegocioId } from '../config/businesses'
 import { REGIMENES, USOS_CFDI, QUERY_KEYS, STALE_TIMES, SHEET_NAMES } from '../api/config'
 import { fetchClientes, fetchSolicitudes, fetchPromoRows, groupPromos } from '../api/sheets'
-import { batchAppend, timbrarFactura, updateStatus, cleanupFailed } from '../api/appscript'
+import { batchAppend, timbrarFactura, updateStatus, cleanupFailed, updateCliente } from '../api/appscript'
 import type { TimbradoResult } from '../api/appscript'
 import { useQueryClient, useQuery } from '@tanstack/react-query'
 import { generateId } from '../utils/ids'
@@ -353,7 +353,15 @@ export function LlevarPage({ data }: LlevarPageProps) {
           setTimbrado(result)
           // Marcar como Procesada en Sheets
           try { await updateStatus(solId, 'Procesada', `Timbrada auto — UUID: ${result.uuid}`) } catch { /* */ }
+          // Actualizar datos del cliente con la info que sí timbró (corrige datos erróneos)
+          try {
+            await updateCliente(rfc, {
+              razonSocial: form.razonSocial, regimen: regimenStr, usoCfdi: cfdiStr,
+              email: form.email, codigoPostal: form.codigoPostal, telefono: form.telefono,
+            })
+          } catch { /* best-effort */ }
           queryClient.invalidateQueries({ queryKey: QUERY_KEYS.solicitudes })
+          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.clientes })
         } else {
           setTimbradoError(result.error || 'Error desconocido al timbrar')
         }
