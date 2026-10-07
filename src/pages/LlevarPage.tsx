@@ -255,8 +255,10 @@ export function LlevarPage({ data }: LlevarPageProps) {
     setIsNew(false)
     setForm({
       rfc: c.rfc, razonSocial: c.razonSocial, regimen: c.regimen,
-      usoCfdi: c.usoCfdi, email: c.email, codigoPostal: c.codigoPostal,
-      telefono: c.telefono, comentarios: '',
+      usoCfdi: c.usoCfdi, codigoPostal: c.codigoPostal,
+      // Email y teléfono NO se pre-llenan: son datos personales
+      // que cambian por persona (ej. empleados del mismo RFC)
+      email: '', telefono: '', comentarios: '',
     })
   }
 
@@ -353,11 +355,11 @@ export function LlevarPage({ data }: LlevarPageProps) {
           setTimbrado(result)
           // Marcar como Procesada en Sheets
           try { await updateStatus(solId, 'Procesada', `Timbrada auto — UUID: ${result.uuid}`) } catch { /* */ }
-          // Actualizar datos del cliente con la info que sí timbró (corrige datos erróneos)
+          // Actualizar solo datos fiscales del cliente (no email/teléfono, esos son por persona)
           try {
             await updateCliente(rfc, {
               razonSocial: form.razonSocial, regimen: regimenStr, usoCfdi: cfdiStr,
-              email: form.email, codigoPostal: form.codigoPostal, telefono: form.telefono,
+              codigoPostal: form.codigoPostal,
             })
           } catch { /* best-effort */ }
           queryClient.invalidateQueries({ queryKey: QUERY_KEYS.solicitudes })
