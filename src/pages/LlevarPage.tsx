@@ -295,6 +295,7 @@ export function LlevarPage({ data }: LlevarPageProps) {
   async function handleConfirmSubmit() {
     setSending(true)
     setSendError('')
+    setTimbradoError('')
 
     const { date, time } = now()
     const solId = generateId(neg.folioPrefix)
@@ -302,76 +303,89 @@ export function LlevarPage({ data }: LlevarPageProps) {
     const cfdiStr = fullUsoCfdi(form.usoCfdi)
     const rfc = form.rfc.toUpperCase()
 
-    const items: BatchItem[] = []
+    // ── 1. Timbrar PRIMERO — no guardamos nada si los datos están mal ──
+    try {
+      setTimbrando(true)
+      const result = await timbrarFactura({
+        rfc, razonSocial: form.razonSocial, regimen: regimenStr, usoCfdi: cfdiStr,
+        email: form.email, codigoPostal: form.codigoPostal, telefono: form.telefono,
+        monto: data.monto, tipoPago: data.tipoPago, negocio: data.negocio,
+        folioPrefix: neg.folioPrefix, mesa: data.mesa, mesero: data.mesero,
+        comentarios: form.comentarios || undefined,
+      })
 
-    items.push({
-      sheet: SHEET_NAMES.solicitudes,
-      rows: [[
-        solId, date, time, data.mesa, data.monto, data.tipoPago,
-        rfc, form.razonSocial, regimenStr, cfdiStr,
-        form.email, 'Pendiente', data.mesero, 'Solicitud via link para llevar',
-        form.codigoPostal, data.negocio,
-      ]],
-    })
+      if (!result.success) {
+        // Timbrado falló — NO guardar nada, dejar que corrija
+        setTimbradoError(result.error || 'Error desconocido al timbrar')
+        setSending(false)
+        setTimbrando(false)
+        return
+      }
 
-    if (isNew) {
+      // ── 2. Timbrado exitoso → ahora sí guardar todo en Sheets ──
+      setTimbrado(result)
+      setTimbrando(false)
+
+      const items: BatchItem[] = []
+
       items.push({
-        sheet: SHEET_NAMES.clientes,
+        sheet: SHEET_NAMES.solicitudes,
         rows: [[
-          generateId('CLI'), rfc, form.razonSocial, regimenStr, cfdiStr,
-          form.email, date, form.telefono, form.codigoPostal,
+          solId, date, time, data.mesa, data.monto, data.tipoPago,
+          rfc, form.razonSocial, regimenStr, cfdiStr,
+          form.email, 'Procesada', data.mesero,
+          `Timbrada auto — UUID: ${result.uuid}`,
+          form.codigoPostal, data.negocio,
         ]],
       })
-    }
 
-    items.push({
-      sheet: SHEET_NAMES.bitacora,
-      rows: [[date, time, data.mesero, 'Solicitud (llevar)', `${rfc} Mesa ${data.mesa} [${neg.name}]`, 'solicitud']],
-    })
+      if (isNew) {
+        items.push({
+          sheet: SHEET_NAMES.clientes,
+          rows: [[
+            generateId('CLI'), rfc, form.razonSocial, regimenStr, cfdiStr,
+            '', date, '', form.codigoPostal,
+          ]],
+        })
+      }
 
-    retryRef.current = { items, solId }
+      items.push({
+        sheet: SHEET_NAMES.bitacora,
+        rows: [[date, time, data.mesero, 'Factura timbrada (llevar)',
+          `${rfc} Mesa ${data.mesa} UUID:${result.uuid} [${neg.name}]`, 'timbrado']],
+      })
 
-    try {
-      await withRetry(() => batchAppend(items), 3)
+      retryRef.current = { items, solId }
+
+      try {
+        await withRetry(() => batchAppend(items), 3)
+      } catch { /* guardar en sheet falló, pero la factura sí se timbró */ }
+
+      // Actualizar datos fiscales del cliente existente
+      if (!isNew) {
+        try {
+          await updateCliente(rfc, {
+            razonSocial: form.razonSocial, regimen: regimenStr, usoCfdi: cfdiStr,
+            codigoPostal: form.codigoPostal,
+          })
+        } catch { /* best-effort */ }
+      }
+
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.solicitudes })
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.clientes })
       setSavedSolId(solId)
-      setSending(false)
       setDone(true)
       try { navigator.vibrate?.([50, 30, 80]) } catch { /* */ }
-
-      // Intentar timbrado automático (no bloquea el éxito)
-      try {
-        setTimbrando(true)
-        setTimbradoError('')
-        const result = await timbrarFactura({
-          rfc, razonSocial: form.razonSocial, regimen: regimenStr, usoCfdi: cfdiStr,
-          email: form.email, codigoPostal: form.codigoPostal, telefono: form.telefono,
-          monto: data.monto, tipoPago: data.tipoPago, negocio: data.negocio,
-          folioPrefix: neg.folioPrefix, mesa: data.mesa, mesero: data.mesero,
-          comentarios: form.comentarios || undefined,
-        })
-        if (result.success) {
-          setTimbrado(result)
-          // Marcar como Procesada en Sheets
-          try { await updateStatus(solId, 'Procesada', `Timbrada auto — UUID: ${result.uuid}`) } catch { /* */ }
-          // Actualizar solo datos fiscales del cliente (no email/teléfono, esos son por persona)
-          try {
-            await updateCliente(rfc, {
-              razonSocial: form.razonSocial, regimen: regimenStr, usoCfdi: cfdiStr,
-              codigoPostal: form.codigoPostal,
-            })
-          } catch { /* best-effort */ }
-          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.solicitudes })
-          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.clientes })
-        } else {
-          setTimbradoError(result.error || 'Error desconocido al timbrar')
-        }
-      } catch (err) {
-        setTimbradoError(err instanceof Error ? err.message : 'Error de conexión al timbrar')
-      } finally { setTimbrando(false) }
-    } catch {
-      setSendError('No se pudo enviar tu solicitud. Verifica tu conexión a internet e intenta de nuevo.')
+    } catch (err) {
+      setTimbrando(false)
+      const msg = err instanceof Error ? err.message : 'Error de conexión'
+      // Distinguir error de red vs error de datos
+      if (msg.toLowerCase().includes('fetch') || msg.toLowerCase().includes('network') || msg.toLowerCase().includes('conexión')) {
+        setSendError('No se pudo conectar. Verifica tu conexión a internet e intenta de nuevo.')
+      } else {
+        setTimbradoError(msg)
+      }
+    } finally {
       setSending(false)
     }
   }
@@ -822,12 +836,21 @@ export function LlevarPage({ data }: LlevarPageProps) {
                 </div>
               </div>
 
+              {timbradoError && (
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                  className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 mb-4">
+                  <p className="text-red-400 text-sm font-bold mb-1">⚠️ Error al generar factura</p>
+                  <p className="text-red-300 text-xs break-all">{timbradoError}</p>
+                  <p className="text-muted text-xs mt-2">Regresa a editar tus datos y corrige la información.</p>
+                </motion.div>
+              )}
+
               <div className="flex flex-col gap-3">
                 <button onClick={handleConfirmSubmit} disabled={sending}
                   className="btn w-full text-white font-bold disabled:opacity-50" style={{ background: t.accent }}>
-                  {sending ? 'Generando factura...' : '🧾 Confirmar y Generar Factura'}
+                  {sending ? 'Generando factura...' : timbradoError ? '🔄 Reintentar' : '🧾 Confirmar y Generar Factura'}
                 </button>
-                <button onClick={() => setConfirming(false)} disabled={sending}
+                <button onClick={() => { setConfirming(false); setTimbradoError('') }} disabled={sending}
                   className="btn w-full bg-surface2 border border-white/10 text-muted text-sm">
                   ← Regresar a editar
                 </button>
