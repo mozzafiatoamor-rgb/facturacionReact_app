@@ -6,6 +6,13 @@
 import type { Cliente, Solicitud, Usuario, BitacoraEntry, PromoRow, PromoGrouped, AppConfig, LinkRecord } from './types'
 import { SHEET_RANGES } from './config'
 
+/** Código postal siempre a 5 dígitos con ceros a la izquierda */
+function padCP(val: string): string {
+  const digits = (val ?? '').replace(/\D/g, '')
+  if (!digits) return ''
+  return digits.padStart(5, '0')
+}
+
 function getConfig(): AppConfig {
   try {
     return JSON.parse(localStorage.getItem('_mzf_facturas_config') ?? 'null') ?? { sheetId: '', apiKey: '', scriptUrl: '' }
@@ -43,7 +50,7 @@ export async function fetchClientes(): Promise<Cliente[]> {
     email:        r[5] ?? '',
     ultimaSol:    r[6] ?? '',
     telefono:     r[7] ?? '',
-    codigoPostal: r[8] ?? '',
+    codigoPostal: padCP(r[8] ?? ''),
     _row:         i + 2,
   }))
 }
@@ -66,7 +73,7 @@ export async function fetchSolicitudes(): Promise<Solicitud[]> {
     status:       (r[11] ?? 'Pendiente') as Solicitud['status'],
     mesero:       r[12] ?? '',
     notas:        r[13] ?? '',
-    codigoPostal: r[14] ?? '',
+    codigoPostal: padCP(r[14] ?? ''),
     negocio:      r[15] ?? 'mozzafiato',
     _row:         i + 2,
   }))

@@ -12,6 +12,17 @@
 var FACTURAPI_BASE = 'https://www.facturapi.io/v2';
 
 /**
+ * Asegura que el código postal tenga 5 dígitos con ceros a la izquierda.
+ * Google Sheets convierte "06000" → 6000, esto lo restaura.
+ */
+function padCP_(val) {
+  var digits = String(val || '').replace(/\D/g, '');
+  if (!digits) return '00000';
+  while (digits.length < 5) digits = '0' + digits;
+  return digits;
+}
+
+/**
  * Obtiene la API key de las propiedades del script.
  */
 function getFacturapiKey_() {
@@ -187,7 +198,7 @@ function findOrCreateCustomer_(data) {
     tax_system: data.regimen.split(' - ')[0].trim(), // solo el código: "626"
     email: data.email,
     address: {
-      zip: data.codigoPostal || '00000',
+      zip: padCP_(data.codigoPostal),
     },
   };
 
