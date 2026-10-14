@@ -26,8 +26,6 @@ export function msToEndOfMonth(): number {
   return endOfMonth.getTime() - now.getTime()
 }
 
-// Fallback en caso de error (30 días)
-const EXPIRY_FALLBACK_MS = 30 * 24 * 60 * 60 * 1000
 
 // Claves compactas para reducir tamaño del URL
 interface CompactPayload {
