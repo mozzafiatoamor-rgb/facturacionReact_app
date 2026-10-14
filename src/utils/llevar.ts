@@ -18,7 +18,16 @@ export interface LlevarData {
   config?: AppConfig // config embebida para dispositivo del cliente (legacy)
 }
 
-const EXPIRY_MS = 5 * 24 * 60 * 60 * 1000 // 5 días
+/** Calcula ms hasta el último segundo del mes actual */
+export function msToEndOfMonth(): number {
+  const now = new Date()
+  // Último día del mes actual a las 23:59:59
+  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999)
+  return endOfMonth.getTime() - now.getTime()
+}
+
+// Fallback en caso de error (30 días)
+const EXPIRY_FALLBACK_MS = 30 * 24 * 60 * 60 * 1000
 
 // Claves compactas para reducir tamaño del URL
 interface CompactPayload {
@@ -53,7 +62,7 @@ export function encodeLlevar(data: Omit<LlevarData, 'exp' | 'config'>): string {
     m: data.mesa, $: data.monto, t: data.tipoPago,
     w: data.mesero, f: data.fecha, h: data.hora,
     n: data.negocio || 'mozzafiato',
-    e: Date.now() + EXPIRY_MS,
+    e: Date.now() + msToEndOfMonth(),
     s: cfg.sheetId, a: cfg.apiKey, u: cfg.scriptUrl,
   }
   const json = JSON.stringify(payload)
@@ -141,7 +150,7 @@ export async function buildLlevarUrl(data: Omit<LlevarData, 'exp' | 'config'>): 
       m: data.mesa, $: data.monto, t: data.tipoPago,
       w: data.mesero, f: data.fecha, h: data.hora,
       n: data.negocio || 'mozzafiato',
-      e: Date.now() + EXPIRY_MS,
+      e: Date.now() + msToEndOfMonth(),
     })
     // CODE.DEPLOYMENT_ID — el cliente puede reconstruir el scriptUrl
     return `${base}?llevar=${code}.${deployId}`
@@ -209,18 +218,19 @@ export async function resolveShortLink(param: string): Promise<LlevarData | null
  * Genera el link de WhatsApp con mensaje prellenado.
  */
 export function buildWhatsAppMessage(llevarUrl: string, monto: string, negocioName = 'Mozzafiato'): string {
+  // Calcular último día del mes actual
+  const now = new Date()
+  const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+  const limitStr = lastDay.toLocaleDateString('es-MX', { day: 'numeric', month: 'long' })
+
   return (
-    `Hola, gracias por tu visita a *${negocioName}*.\n\n` +
-    `Hemos mejorado nuestro sistema de facturación. Ahora puedes generar y descargar tu factura al instante.\n\n` +
-    `*Monto:* $${monto}\n\n` +
-    `Genera tu factura aquí:\n${llevarUrl}\n\n` +
-    `*¿Cómo funciona?*\n` +
-    `1. Abre el enlace\n` +
-    `2. Busca tu RFC o regístralo como nuevo cliente\n` +
-    `3. Confirma tus datos fiscales\n` +
-    `4. Descarga tu PDF y XML al instante\n\n` +
-    `También recibirás una copia por correo electrónico.\n\n` +
-    `_Enlace válido por 5 días._`
+    `¡Hola! Gracias por tu preferencia en *${negocioName}* 🍕\n\n` +
+    `Aquí tienes tu enlace para generar tu factura:\n\n` +
+    `💰 *Monto:* $${monto}\n` +
+    `🧾 *Link:* ${llevarUrl}\n\n` +
+    `Solo abre el enlace, ingresa tus datos fiscales y descarga tu factura al instante (PDF y XML).\n\n` +
+    `📧 También recibirás una copia en tu correo.\n\n` +
+    `_Tienes hasta el ${limitStr} para facturar._`
   )
 }
 

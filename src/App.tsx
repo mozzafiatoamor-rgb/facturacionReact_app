@@ -31,7 +31,7 @@ import {
   getLlevarParam, decodeLlevar, isExpired, isShortLink,
   getDespachoParam, decodeDespacho,
   clearSpecialParams, injectConfig,
-  resolveShortLink,
+  resolveShortLink, msToEndOfMonth,
 } from './utils/llevar'
 import { LOGO } from './assets/logo'
 
@@ -104,19 +104,24 @@ export default function App() {
   const [resolvingLink, setResolvingLink] = useState(!!initState.pendingCode)
 
   // ── Resolver código corto (async) ──
+  const [linkResolveError, setLinkResolveError] = useState(false)
   useEffect(() => {
     if (!initState.pendingCode) return
     let cancelled = false
     ;(async () => {
-      const data = await resolveShortLink(initState.pendingCode)
-      if (cancelled) return
-      if (data) {
-        if (data.config) injectConfig(data.config)
-        setLlevarData(data)
-      } else {
-        setLlevarExpired(true)
+      try {
+        const data = await resolveShortLink(initState.pendingCode)
+        if (cancelled) return
+        if (data) {
+          if (data.config) injectConfig(data.config)
+          setLlevarData(data)
+        } else {
+          setLlevarExpired(true)
+        }
+      } catch {
+        if (!cancelled) setLinkResolveError(true)
       }
-      setResolvingLink(false)
+      if (!cancelled) setResolvingLink(false)
     })()
     return () => { cancelled = true }
   }, [initState.pendingCode])
@@ -150,7 +155,7 @@ export default function App() {
       fecha: date,
       hora: time,
       negocio: o.negocio,
-      exp: Date.now() + 5 * 24 * 60 * 60 * 1000,
+      exp: Date.now() + msToEndOfMonth(),
     })
   }
 
@@ -231,11 +236,31 @@ export default function App() {
         <span className="text-5xl mb-4">⏰</span>
         <h1 className="text-xl font-bold text-white mb-2">Link expirado</h1>
         <p className="text-muted text-sm max-w-[280px]">
-          Este link de facturación ya no es válido. Los links expiran después de 5 días.
+          Este link de facturación ya no es válido. El plazo para facturar fue hasta el último día del mes.
         </p>
         <p className="text-muted text-xs mt-4">
-          Pide a tu mesero que genere un nuevo link.
+          Solicita un nuevo link a tu mesero.
         </p>
+      </div>
+    )
+  }
+
+  // ── Render: error al resolver link (no mostrar login) ──
+  if (linkResolveError) {
+    return (
+      <div className="font-sans antialiased text-white h-dvh overflow-hidden bg-bg flex flex-col items-center justify-center px-6 text-center">
+        <img src={LOGO} alt="Logo" className="h-20 w-auto object-contain mb-6" />
+        <span className="text-5xl mb-4">📡</span>
+        <h1 className="text-xl font-bold text-white mb-2">Error de conexión</h1>
+        <p className="text-muted text-sm max-w-[280px]">
+          No pudimos cargar los datos de tu factura. Verifica tu conexión a internet e intenta de nuevo.
+        </p>
+        <button
+          onClick={() => window.location.reload()}
+          className="mt-6 px-6 py-3 bg-accent text-white rounded-xl font-bold text-sm active:scale-95 transition-transform"
+        >
+          🔄 Reintentar
+        </button>
       </div>
     )
   }
