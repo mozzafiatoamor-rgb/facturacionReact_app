@@ -15,6 +15,7 @@ export interface LlevarData {
   hora: string
   negocio: string    // 'mozzafiato' | 'casaregina'
   exp: number        // timestamp de expiración
+  linkCode?: string  // código único del link (6 chars)
   config?: AppConfig // config embebida para dispositivo del cliente (legacy)
 }
 
@@ -205,6 +206,7 @@ export async function resolveShortLink(param: string): Promise<LlevarData | null
       hora: p.h as string,
       negocio: (p.n as string) || 'mozzafiato',
       exp: p.e as number,
+      linkCode: code,
       config,
     }
   } catch {

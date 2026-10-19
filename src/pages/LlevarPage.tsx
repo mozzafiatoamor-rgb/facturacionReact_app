@@ -192,16 +192,19 @@ export function LlevarPage({ data }: LlevarPageProps) {
   }, [neg.id])
 
   const existing: Solicitud | null = useMemo(() => {
-    // Buscar por mesa + monto + mesero + negocio + ventana de ±2 días
-    // data.fecha = cuando el mesero creó el link
-    // s.fecha    = cuando el cliente envió el form
-    // Pueden diferir por 1–2 días, pero no debemos matchear solicitudes
-    // viejas que casualmente tengan los mismos datos.
+    // Si el link tiene un código único, matchear solo por ese código
+    // Esto evita falsos positivos cuando dos links distintos tienen
+    // la misma mesa + monto + mesero + negocio
+    if (data.linkCode) {
+      const tag = `[link:${data.linkCode}]`
+      const match = solicitudes.find((s) => s.notas?.includes(tag))
+      return match ?? null
+    }
+    // Fallback para links legacy (sin linkCode): mesa + monto + mesero + negocio + ventana temporal
     const linkDate = parseDate(data.fecha)
     const matches = solicitudes.filter((s) => {
       if (s.mesa !== data.mesa || s.monto !== data.monto ||
           s.mesero !== data.mesero || s.negocio !== data.negocio) return false
-      // Filtro de ventana temporal: ±2 días
       if (linkDate) {
         const solDate = parseDate(s.fecha)
         if (solDate) {
@@ -334,7 +337,7 @@ export function LlevarPage({ data }: LlevarPageProps) {
           solId, date, time, data.mesa, data.monto, data.tipoPago,
           rfc, form.razonSocial, regimenStr, cfdiStr,
           form.email, 'Procesada', data.mesero,
-          `Timbrada auto — UUID: ${result.uuid}`,
+          `Timbrada auto — UUID: ${result.uuid}${data.linkCode ? ` [link:${data.linkCode}]` : ''}`,
           form.codigoPostal, data.negocio,
         ]],
       })
