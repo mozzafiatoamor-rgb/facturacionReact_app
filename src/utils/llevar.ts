@@ -105,10 +105,10 @@ export function decodeLlevar(encoded: string): LlevarData | null {
 
 /**
  * Inyecta la config del link en localStorage.
+ * Siempre sobreescribe para que el cliente use la config más reciente.
  */
 export function injectConfig(config: AppConfig): void {
-  const existing = getStoredConfig()
-  if (!existing.sheetId && !existing.apiKey && !existing.scriptUrl) {
+  if (config.sheetId && config.scriptUrl) {
     localStorage.setItem('_mzf_facturas_config', JSON.stringify(config))
   }
 }

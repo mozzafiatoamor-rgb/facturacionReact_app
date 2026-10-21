@@ -17,6 +17,7 @@ import { useQueryClient, useQuery } from '@tanstack/react-query'
 import { generateId } from '../utils/ids'
 import { now, fmt$, parseDate } from '../utils/dates'
 import type { LlevarData } from '../utils/llevar'
+import { injectConfig } from '../utils/llevar'
 import type { Cliente, Solicitud, BatchItem } from '../api/types'
 
 function fullRegimen(clave: string): string {
@@ -162,6 +163,11 @@ interface LlevarPageProps {
 }
 
 export function LlevarPage({ data }: LlevarPageProps) {
+  // Asegurar que la config está en localStorage (safety net)
+  useEffect(() => {
+    if (data.config) injectConfig(data.config)
+  }, [data.config])
+
   const queryClient = useQueryClient()
   const neg = getNegocio(data.negocio)
   const logo = getLogo(neg.logoKey)
