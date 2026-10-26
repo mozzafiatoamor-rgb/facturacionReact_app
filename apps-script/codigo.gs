@@ -257,6 +257,15 @@ function doPost(e) {
         acuseXmlBase64: acuseResult.acuseXmlBase64,
       };
 
+    // ── downloadInvoice: descarga PDF y XML de una factura timbrada
+    } else if (data.action === 'downloadInvoice') {
+      var invoiceFiles = downloadInvoiceFiles_(data.invoiceId);
+      result = {
+        success: true,
+        pdfBase64: invoiceFiles.pdfBase64,
+        xmlBase64: invoiceFiles.xmlBase64,
+      };
+
     // ── sendPreFactura: envía email de pre-factura (sin timbrar) para revisión
     } else if (data.action === 'sendPreFactura') {
       sendPreFactura_(data);

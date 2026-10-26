@@ -168,6 +168,17 @@ export async function downloadAcuse(invoiceId: string): Promise<AcuseResult> {
   return post<AcuseResult>({ action: 'downloadAcuse', invoiceId })
 }
 
+// ── DESCARGAR FACTURA (PDF + XML) ────────────────────────
+export interface InvoiceFilesResult {
+  success: boolean
+  pdfBase64: string
+  xmlBase64: string
+}
+
+export async function downloadInvoice(invoiceId: string): Promise<InvoiceFilesResult> {
+  return post<InvoiceFilesResult>({ action: 'downloadInvoice', invoiceId })
+}
+
 // ── GUARDAR PROMOS ───────────────────────────────────────
 export async function savePromos(promos: { negocio: string; headline: string; tagline: string; cta: string; link: string }[]): Promise<void> {
   await post({ action: 'savePromos', promos })

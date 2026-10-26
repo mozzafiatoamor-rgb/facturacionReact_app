@@ -22,7 +22,7 @@ import {
 } from '../hooks/useSheets'
 import { fmt$, isToday } from '../utils/dates'
 import { encodeDespacho, buildWhatsAppMessage } from '../utils/llevar'
-import { listInvoices, savePromos, cancelInvoice, downloadAcuse } from '../api/appscript'
+import { listInvoices, savePromos, cancelInvoice, downloadAcuse, downloadInvoice } from '../api/appscript'
 import { fetchPromoRows, groupPromos, fetchLinks } from '../api/sheets'
 import { NEGOCIOS } from '../config/businesses'
 import { getLogo } from '../assets/logos'
@@ -98,6 +98,7 @@ export function AdminPage({ onNavigate }: AdminPageProps) {
   const [cancelling, setCancelling] = useState(false)
   const [cancelAcuse, setCancelAcuse] = useState<{ uuid: string; pdf: string } | null>(null)
   const [downloadingAcuseId, setDownloadingAcuseId] = useState<string | null>(null)
+  const [downloadingInvId, setDownloadingInvId] = useState<string | null>(null)
 
   // ── Promos tab state ──
   interface PromoState { headline: string; tagline: string; buttons: { cta: string; link: string }[] }
@@ -163,7 +164,7 @@ export function AdminPage({ onNavigate }: AdminPageProps) {
   async function handleCopyMessage(link: LinkRecord) {
     const neg = NEGOCIOS[link.negocio as keyof typeof NEGOCIOS]
     const url = reconstructLlevarUrl(link.code)
-    const msg = buildWhatsAppMessage(url, link.monto, neg?.name ?? 'Mozzafiato')
+    const msg = buildWhatsAppMessage(url, link.monto, neg?.name ?? 'Mozzafiato', link.fecha)
     await navigator.clipboard.writeText(msg)
     setCopiedLinkId(link.code)
     toast('Mensaje copiado al portapapeles')
@@ -294,6 +295,31 @@ export function AdminPage({ onNavigate }: AdminPageProps) {
       toast(err instanceof Error ? err.message : 'Error al descargar acuse', 'error')
     } finally {
       setDownloadingAcuseId(null)
+    }
+  }
+
+  async function handleDownloadInvoice(inv: FacturapiInvoice, format: 'pdf' | 'xml' | 'both') {
+    setDownloadingInvId(inv.id)
+    try {
+      const res = await downloadInvoice(inv.id)
+      if (format === 'pdf' || format === 'both') {
+        if (res.pdfBase64) {
+          downloadBase64(res.pdfBase64, `Factura_${inv.series}${inv.folioNumber}.pdf`, 'application/pdf')
+        } else {
+          toast('No se pudo descargar el PDF', 'error')
+        }
+      }
+      if (format === 'xml' || format === 'both') {
+        if (res.xmlBase64) {
+          downloadBase64(res.xmlBase64, `Factura_${inv.series}${inv.folioNumber}.xml`, 'application/xml')
+        } else {
+          toast('No se pudo descargar el XML', 'error')
+        }
+      }
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Error al descargar factura', 'error')
+    } finally {
+      setDownloadingInvId(null)
     }
   }
 
@@ -600,12 +626,28 @@ export function AdminPage({ onNavigate }: AdminPageProps) {
                           <span className="bg-surface2 rounded px-1.5 py-0.5">{PAYMENT_FORMS[String(inv.paymentForm)] || inv.paymentForm}</span>
                           <span className="bg-surface2 rounded px-1.5 py-0.5 font-mono">{inv.uuid.slice(0, 8)}...</span>
                         </div>
-                        <button
-                          onClick={() => { setCancelTarget(inv); setCancelMotive('02') }}
-                          className="text-[11px] px-3 py-1.5 rounded-lg bg-red-500/10 text-red-400 border border-red-500/20 font-medium hover:bg-red-500/20 transition-colors"
-                        >
-                          ✕ Cancelar factura
-                        </button>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            onClick={() => handleDownloadInvoice(inv, 'pdf')}
+                            disabled={downloadingInvId === inv.id}
+                            className="text-[11px] px-3 py-1.5 rounded-lg bg-accent/10 text-accent border border-accent/20 font-medium hover:bg-accent/20 transition-colors disabled:opacity-50"
+                          >
+                            {downloadingInvId === inv.id ? '⏳' : '📄'} PDF
+                          </button>
+                          <button
+                            onClick={() => handleDownloadInvoice(inv, 'xml')}
+                            disabled={downloadingInvId === inv.id}
+                            className="text-[11px] px-3 py-1.5 rounded-lg bg-accent/10 text-accent border border-accent/20 font-medium hover:bg-accent/20 transition-colors disabled:opacity-50"
+                          >
+                            {downloadingInvId === inv.id ? '⏳' : '📋'} XML
+                          </button>
+                          <button
+                            onClick={() => { setCancelTarget(inv); setCancelMotive('02') }}
+                            className="text-[11px] px-3 py-1.5 rounded-lg bg-red-500/10 text-red-400 border border-red-500/20 font-medium hover:bg-red-500/20 transition-colors"
+                          >
+                            ✕ Cancelar
+                          </button>
+                        </div>
                       </motion.div>
                     ))}
                   </>

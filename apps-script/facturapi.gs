@@ -598,6 +598,36 @@ function downloadCancellationReceipt_(invoiceId) {
 }
 
 /**
+ * Descarga PDF y XML de una factura timbrada.
+ * Endpoints: GET /v2/invoices/{id}/pdf  y  GET /v2/invoices/{id}/xml
+ */
+function downloadInvoiceFiles_(invoiceId) {
+  var pdfB64 = '';
+  var xmlB64 = '';
+  try {
+    var pdfRes = UrlFetchApp.fetch(
+      FACTURAPI_BASE + '/invoices/' + invoiceId + '/pdf',
+      { method: 'get', headers: { 'Authorization': 'Bearer ' + getFacturapiKey_() }, muteHttpExceptions: true }
+    );
+    if (pdfRes.getResponseCode() === 200) {
+      pdfB64 = Utilities.base64Encode(pdfRes.getContent());
+    }
+  } catch (e) { Logger.log('Error descargando factura PDF: ' + e.message); }
+
+  try {
+    var xmlRes = UrlFetchApp.fetch(
+      FACTURAPI_BASE + '/invoices/' + invoiceId + '/xml',
+      { method: 'get', headers: { 'Authorization': 'Bearer ' + getFacturapiKey_() }, muteHttpExceptions: true }
+    );
+    if (xmlRes.getResponseCode() === 200) {
+      xmlB64 = Utilities.base64Encode(xmlRes.getContent());
+    }
+  } catch (e) { Logger.log('Error descargando factura XML: ' + e.message); }
+
+  return { pdfBase64: pdfB64, xmlBase64: xmlB64 };
+}
+
+/**
  * Envía un email de pre-factura (sin timbrar) al cliente para que revise los datos.
  */
 function sendPreFactura_(data) {

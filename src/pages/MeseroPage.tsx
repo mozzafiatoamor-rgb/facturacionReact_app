@@ -87,7 +87,7 @@ export function MeseroPage({ initial, onGenerarFactura, onBack, userName }: Mese
         mesero: userName, fecha: date, hora: time, negocio,
       })
       const neg = getNegocio(negocio)
-      const msg = buildWhatsAppMessage(url, monto, neg.name)
+      const msg = buildWhatsAppMessage(url, monto, neg.name, date)
       await navigator.clipboard.writeText(msg)
       setCopied(true)
       toast('Mensaje copiado al portapapeles')

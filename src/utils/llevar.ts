@@ -217,15 +217,17 @@ export async function resolveShortLink(param: string): Promise<LlevarData | null
 /**
  * Genera el link de WhatsApp con mensaje prellenado.
  */
-export function buildWhatsAppMessage(llevarUrl: string, monto: string, negocioName = 'Mozzafiato'): string {
+export function buildWhatsAppMessage(llevarUrl: string, monto: string, negocioName = 'Mozzafiato', fecha?: string): string {
   // Calcular último día del mes actual
   const now = new Date()
   const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0)
   const limitStr = lastDay.toLocaleDateString('es-MX', { day: 'numeric', month: 'long' })
+  const fechaStr = fecha || now.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' })
 
   return (
     `¡Hola! Gracias por tu preferencia en *${negocioName}* 🍕\n\n` +
     `Aquí tienes tu enlace para generar tu factura:\n\n` +
+    `📅 *Fecha:* ${fechaStr}\n` +
     `💰 *Monto:* $${monto}\n` +
     `🧾 *Link:* ${llevarUrl}\n\n` +
     `Solo abre el enlace, ingresa tus datos fiscales y descarga tu factura al instante (PDF y XML).\n\n` +
