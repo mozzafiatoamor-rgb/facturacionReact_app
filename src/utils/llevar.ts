@@ -108,8 +108,18 @@ export function decodeLlevar(encoded: string): LlevarData | null {
  * Siempre sobreescribe para que el cliente use la config más reciente.
  */
 export function injectConfig(config: AppConfig): void {
-  if (config.sheetId && config.scriptUrl) {
-    localStorage.setItem('_mzf_facturas_config', JSON.stringify(config))
+  if (config.scriptUrl) {
+    // Merge con config existente para no perder campos previamente guardados
+    const existing = (() => {
+      try { return JSON.parse(localStorage.getItem('_mzf_facturas_config') ?? 'null') ?? {} }
+      catch { return {} }
+    })()
+    const merged = {
+      sheetId: config.sheetId || existing.sheetId || '',
+      apiKey: config.apiKey || existing.apiKey || '',
+      scriptUrl: config.scriptUrl,
+    }
+    localStorage.setItem('_mzf_facturas_config', JSON.stringify(merged))
   }
 }
 
