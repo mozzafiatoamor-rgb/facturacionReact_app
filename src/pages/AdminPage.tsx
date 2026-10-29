@@ -366,14 +366,24 @@ export function AdminPage({ onNavigate }: AdminPageProps) {
 
   const invSummary = useMemo(() => {
     const active = invoices.filter(inv => !isCancelled(inv))
-    const summarize = (list: FacturapiInvoice[]) => ({
-      count: list.length,
-      total: list.reduce((a, i) => a + i.total, 0),
-      subtotal: list.reduce((a, i) => a + i.subtotal, 0),
-      iva: list.reduce((a, i) => a + i.iva, 0),
-      isr: list.reduce((a, i) => a + i.isr, 0),
-      ish: list.reduce((a, i) => a + i.ish, 0),
-    })
+    const summarize = (list: FacturapiInvoice[]) => {
+      const byPayment: Record<string, { count: number; total: number }> = {}
+      list.forEach(i => {
+        const key = String(i.paymentForm)
+        if (!byPayment[key]) byPayment[key] = { count: 0, total: 0 }
+        byPayment[key].count++
+        byPayment[key].total += i.total
+      })
+      return {
+        count: list.length,
+        total: list.reduce((a, i) => a + i.total, 0),
+        subtotal: list.reduce((a, i) => a + i.subtotal, 0),
+        iva: list.reduce((a, i) => a + i.iva, 0),
+        isr: list.reduce((a, i) => a + i.isr, 0),
+        ish: list.reduce((a, i) => a + i.ish, 0),
+        byPayment,
+      }
+    }
     return {
       all: summarize(active),
       mozz: summarize(active.filter(i => i.series === 'MOZZ')),
@@ -554,6 +564,21 @@ export function AdminPage({ onNavigate }: AdminPageProps) {
                       <div className="flex justify-between"><span className="text-muted">ISH</span><span className="text-blue-400 font-bold">{biz.data.ish > 0 ? fmt$(biz.data.ish) : '$0'}</span></div>
                       <div className="col-span-2 flex justify-between border-t border-white/10 pt-2"><span className="text-white font-semibold">Total</span><span className="font-bold text-base" style={{ color: biz.accent }}>{fmt$(biz.data.total)}</span></div>
                     </div>
+                    {Object.keys(biz.data.byPayment).length > 0 && (
+                      <div className="mt-3 pt-3 border-t border-white/5">
+                        <p className="text-[10px] text-muted uppercase tracking-wider mb-2">Por tipo de pago</p>
+                        <div className="flex flex-wrap gap-2">
+                          {Object.entries(biz.data.byPayment).sort((a, b) => b[1].total - a[1].total).map(([code, info]) => (
+                            <div key={code} className="bg-surface2 rounded-lg px-2.5 py-1.5 text-[11px]">
+                              <span className="text-muted">{PAYMENT_FORMS[code] || `Clave ${code}`}</span>
+                              <span className="text-white font-bold ml-1.5">{info.count}</span>
+                              <span className="text-muted ml-1">·</span>
+                              <span className="font-semibold ml-1" style={{ color: biz.accent }}>{fmt$(info.total)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
 
@@ -567,6 +592,21 @@ export function AdminPage({ onNavigate }: AdminPageProps) {
                     <div className="flex justify-between"><span className="text-muted">ISH</span><span className="text-blue-400 font-bold">{invSummary.all.ish > 0 ? fmt$(invSummary.all.ish) : '$0'}</span></div>
                     <div className="col-span-2 flex justify-between border-t border-white/10 pt-2"><span className="text-white font-semibold">Total Facturado</span><span className="text-accent font-bold text-lg">{fmt$(invSummary.all.total)}</span></div>
                   </div>
+                  {Object.keys(invSummary.all.byPayment).length > 0 && (
+                    <div className="mt-3 pt-3 border-t border-white/5">
+                      <p className="text-[10px] text-muted uppercase tracking-wider mb-2">Por tipo de pago (general)</p>
+                      <div className="flex flex-wrap gap-2">
+                        {Object.entries(invSummary.all.byPayment).sort((a, b) => b[1].total - a[1].total).map(([code, info]) => (
+                          <div key={code} className="bg-surface2 rounded-lg px-2.5 py-1.5 text-[11px]">
+                            <span className="text-muted">{PAYMENT_FORMS[code] || `Clave ${code}`}</span>
+                            <span className="text-white font-bold ml-1.5">{info.count}</span>
+                            <span className="text-muted ml-1">·</span>
+                            <span className="text-accent font-semibold ml-1">{fmt$(info.total)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Sub-tabs: Procesadas / Canceladas */}
