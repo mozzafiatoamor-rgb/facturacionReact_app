@@ -336,19 +336,6 @@ export function AdminPage({ onNavigate }: AdminPageProps) {
     inv.status === 'canceled' ||
     (inv.cancellationStatus !== 'none' && inv.cancellationStatus !== '')
 
-  // Build a map of recibo by invoice monto+RFC for cross-referencing with links
-  const reciboByInvoice = useMemo(() => {
-    const map = new Map<string, string>()
-    links.forEach(lnk => {
-      if (lnk.recibo) {
-        // key = RFC-like match isn't possible here, so map by monto
-        // We'll just search recibo across all links when user types a recibo number
-        map.set(lnk.code, lnk.recibo)
-      }
-    })
-    return map
-  }, [links])
-
   // Get all recibo values from links for searching
   const allRecibos = useMemo(() => {
     return links.filter(lnk => lnk.recibo).map(lnk => ({
