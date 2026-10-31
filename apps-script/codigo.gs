@@ -257,6 +257,17 @@ function doPost(e) {
         acuseXmlBase64: acuseResult.acuseXmlBase64,
       };
 
+    // ── validateRecibo: valida recibo contra Loyverse POS
+    } else if (data.action === 'validateRecibo') {
+      var loyResult = validateReciboLoyverse_(data.receiptNumber);
+      result = {
+        success: true,
+        found: loyResult.found,
+        total: loyResult.total || 0,
+        receiptNumber: loyResult.receiptNumber || data.receiptNumber,
+        error: loyResult.error || null,
+      };
+
     // ── downloadInvoice: descarga PDF y XML de una factura timbrada
     } else if (data.action === 'downloadInvoice') {
       var invoiceFiles = downloadInvoiceFiles_(data.invoiceId);

@@ -10,6 +10,7 @@ import { StatusBar } from '../components/layout/StatusBar'
 import { useToast } from '../hooks/useToast'
 import { TIPOS_PAGO } from '../api/config'
 import { buildLlevarUrl, buildWhatsAppUrl, buildWhatsAppMessage } from '../utils/llevar'
+import { validateRecibo } from '../api/appscript'
 import { now } from '../utils/dates'
 import { NEGOCIO_LIST, getNegocio } from '../config/businesses'
 import { getLogo } from '../assets/logos'
@@ -37,6 +38,37 @@ export function MeseroPage({ initial, onGenerarFactura, onBack, userName }: Mese
   const [sendingLink, setSendingLink] = useState(false)
   const [copyingLink, setCopyingLink] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [validatingRecibo, setValidatingRecibo] = useState(false)
+  const [reciboValidated, setReciboValidated] = useState<boolean | null>(null) // null=no validado, true=ok, false=error
+  const [reciboError, setReciboError] = useState('')
+
+  async function handleValidateRecibo() {
+    if (negocio !== 'mozzafiato' || !recibo.trim() || !monto) return
+    setValidatingRecibo(true)
+    setReciboValidated(null)
+    setReciboError('')
+    try {
+      const result = await validateRecibo(recibo.trim())
+      if (!result.found) {
+        setReciboValidated(false)
+        setReciboError('Recibo no encontrado en Loyverse')
+        return
+      }
+      const montoNum = parseFloat(monto)
+      if (Math.abs(result.total - montoNum) > 0.50) {
+        setReciboValidated(false)
+        setReciboError(`Monto no coincide: Loyverse $${result.total.toFixed(2)} vs capturado $${montoNum.toFixed(2)}`)
+        return
+      }
+      setReciboValidated(true)
+      setReciboError('')
+    } catch {
+      setReciboValidated(false)
+      setReciboError('Error al consultar Loyverse')
+    } finally {
+      setValidatingRecibo(false)
+    }
+  }
 
   function validate(): boolean {
     if (!negocio) { toast('Selecciona el negocio', 'error'); return false }
@@ -44,6 +76,10 @@ export function MeseroPage({ initial, onGenerarFactura, onBack, userName }: Mese
     if (!monto || parseFloat(monto) <= 0) { toast('Monto inválido', 'error'); return false }
     if (!tipoPago) { toast('Selecciona el tipo de pago', 'error'); return false }
     if (negocio === 'mozzafiato' && !recibo.trim()) { toast('Ingresa el número de recibo', 'error'); return false }
+    if (negocio === 'mozzafiato' && reciboValidated === false) {
+      toast('El recibo no pasó la validación con Loyverse', 'error')
+      return false
+    }
     return true
   }
 
@@ -269,19 +305,26 @@ export function MeseroPage({ initial, onGenerarFactura, onBack, userName }: Mese
                   </div>
                 </div>
 
-                {/* Recibo # (solo Mozzafiato) */}
+                {/* Recibo # (solo Mozzafiato) — con validación Loyverse */}
                 {negocio === 'mozzafiato' && (
                   <div className="mb-4">
-                    <label className="block text-xs text-muted font-medium mb-1.5">Recibo # <span className="text-red-400">*</span></label>
+                    <label className="block text-xs text-muted font-medium mb-1.5">
+                      Recibo # <span className="text-red-400">*</span>
+                      {validatingRecibo && <span className="ml-2 text-yellow-400 text-xs">⏳ Verificando...</span>}
+                      {reciboValidated === true && <span className="ml-2 text-green-400 text-xs">✅ Verificado</span>}
+                      {reciboValidated === false && <span className="ml-2 text-red-400 text-xs">❌ Error</span>}
+                    </label>
                     <input
                       value={recibo}
-                      onChange={(e) => setRecibo(e.target.value)}
+                      onChange={(e) => { setRecibo(e.target.value); setReciboValidated(null); setReciboError('') }}
+                      onBlur={() => { if (recibo.trim() && monto) handleValidateRecibo() }}
                       type="text"
                       inputMode="numeric"
                       placeholder="Ej: 1234"
-                      className="input"
+                      className={`input ${reciboValidated === false ? 'border-red-500' : reciboValidated === true ? 'border-green-500' : ''}`}
                       autoComplete="off"
                     />
+                    {reciboError && <p className="text-red-400 text-xs mt-1">{reciboError}</p>}
                   </div>
                 )}
 

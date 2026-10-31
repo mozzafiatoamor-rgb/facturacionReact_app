@@ -689,3 +689,71 @@ function sendPreFactura_(data) {
     name: negocioName + ' Facturas'
   });
 }
+
+// ============================================================
+// LOYVERSE — Validación de recibo contra POS
+// ============================================================
+
+/**
+ * Consulta un recibo en Loyverse por su número y retorna el total.
+ * El API Token de Loyverse se guarda en Script Properties como LOYVERSE_TOKEN.
+ * @param {string} receiptNumber — Número de recibo (ej: "1-1008" o "1008")
+ * @returns {{ found: boolean, total?: number, receiptNumber?: string, error?: string }}
+ */
+function validateReciboLoyverse_(receiptNumber) {
+  var props = PropertiesService.getScriptProperties();
+  var token = props.getProperty('LOYVERSE_TOKEN');
+  if (!token) {
+    return { found: false, error: 'LOYVERSE_TOKEN no configurado en Script Properties' };
+  }
+
+  // Loyverse receipt numbers suelen tener formato "STORE-NUMBER" (ej: "1-1008")
+  // Si el usuario solo pone el número, intentamos con formato "1-NUMBER" primero
+  var attempts = [receiptNumber];
+  if (!/^\d+-/.test(receiptNumber)) {
+    // No tiene prefijo de tienda, probar con "1-" (tienda principal)
+    attempts.unshift('1-' + receiptNumber);
+  }
+
+  for (var i = 0; i < attempts.length; i++) {
+    var num = attempts[i];
+    try {
+      var url = 'https://api.loyverse.com/v1.0/receipts/' + encodeURIComponent(num);
+      var res = UrlFetchApp.fetch(url, {
+        method: 'get',
+        headers: {
+          'Authorization': 'Bearer ' + token,
+          'Accept': 'application/json'
+        },
+        muteHttpExceptions: true
+      });
+
+      var code = res.getResponseCode();
+      if (code === 200) {
+        var data = JSON.parse(res.getContentText());
+        // Calcular total del recibo sumando line items
+        var total = 0;
+        if (data.total_money !== undefined) {
+          total = data.total_money;
+        } else if (data.line_items && data.line_items.length > 0) {
+          for (var j = 0; j < data.line_items.length; j++) {
+            total += (data.line_items[j].total_money || 0);
+          }
+        }
+        return {
+          found: true,
+          total: total,
+          receiptNumber: data.receipt_number || num
+        };
+      }
+      // 404 = no encontrado, seguir con el siguiente intento
+      if (code !== 404) {
+        Logger.log('Loyverse API error ' + code + ': ' + res.getContentText());
+      }
+    } catch (e) {
+      Logger.log('Error consultando Loyverse: ' + e.message);
+    }
+  }
+
+  return { found: false, error: 'Recibo no encontrado en Loyverse' };
+}

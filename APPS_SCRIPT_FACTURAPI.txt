@@ -1,0 +1,762 @@
+// ============================================================
+// ARCHIVO 2 DE 2: facturapi.gs
+// Pega este código en el archivo "facturapi.gs" de tu Apps Script
+// ============================================================
+//
+// SETUP: Ve a Configuración del proyecto > Propiedades del script
+// y agrega estas propiedades:
+//   FACTURAPI_KEY_TEST = sk_test_xxxxx (tu API key de Facturapi test)
+//   FACTURAPI_KEY_LIVE = sk_live_xxxxx (tu API key de Facturapi live)
+//   FACTURAPI_MODE = test (o live)
+//   LOYVERSE_TOKEN = tu_token_de_loyverse  ← NUEVO
+//
+// ============================================================
+
+var FACTURAPI_BASE = 'https://www.facturapi.io/v2';
+
+/**
+ * Asegura que el código postal tenga 5 dígitos con ceros a la izquierda.
+ * Google Sheets convierte "06000" → 6000, esto lo restaura.
+ */
+function padCP_(val) {
+  var digits = String(val || '').replace(/\D/g, '');
+  if (!digits) return '00000';
+  while (digits.length < 5) digits = '0' + digits;
+  return digits;
+}
+
+/**
+ * Obtiene la API key de las propiedades del script.
+ */
+function getFacturapiKey_() {
+  var props = PropertiesService.getScriptProperties();
+  var mode = (props.getProperty('FACTURAPI_MODE') || 'test').toLowerCase();
+  var key = mode === 'live'
+    ? props.getProperty('FACTURAPI_KEY_LIVE')
+    : props.getProperty('FACTURAPI_KEY_TEST');
+  if (!key) throw new Error('FACTURAPI_KEY_' + mode.toUpperCase() + ' no configurada en Script Properties');
+  return key;
+}
+
+/**
+ * Headers comunes para Facturapi.
+ */
+function facturApiHeaders_() {
+  return {
+    'Authorization': 'Bearer ' + getFacturapiKey_(),
+    'Content-Type': 'application/json',
+  };
+}
+
+/**
+ * Lista facturas de Facturapi con filtros de fecha y paginación.
+ * Devuelve todas las páginas para el rango solicitado.
+ */
+function listInvoices_(params) {
+  var dateFrom = params.dateFrom; // YYYY-MM-DD
+  var dateTo = params.dateTo;     // YYYY-MM-DD
+  var allInvoices = [];
+  var page = 1;
+  var hasMore = true;
+
+  while (hasMore) {
+    var url = FACTURAPI_BASE + '/invoices?type=I&limit=100&page=' + page;
+    if (dateFrom) url += '&date[gte]=' + dateFrom + 'T00:00:00.000Z';
+    if (dateTo)   url += '&date[lte]=' + dateTo + 'T23:59:59.999Z';
+
+    var res = UrlFetchApp.fetch(url, {
+      method: 'get',
+      headers: facturApiHeaders_(),
+      muteHttpExceptions: true,
+    });
+
+    if (res.getResponseCode() !== 200) {
+      throw new Error('Error consultando facturas: ' + res.getContentText());
+    }
+
+    var body = JSON.parse(res.getContentText());
+    var invoices = body.data || [];
+
+    for (var i = 0; i < invoices.length; i++) {
+      var inv = invoices[i];
+      // Calcular desglose de impuestos
+      var iva = 0, isr = 0, ish = 0, subtotal = 0;
+      var items = inv.items || [];
+      for (var j = 0; j < items.length; j++) {
+        var item = items[j];
+        var price = (item.product && item.product.price) || 0;
+        var qty = item.quantity || 1;
+        subtotal += price * qty;
+        // Impuestos federales
+        var taxes = (item.product && item.product.taxes) || [];
+        if (!Array.isArray(taxes)) taxes = Object.values(taxes);
+        for (var k = 0; k < taxes.length; k++) {
+          var tax = taxes[k];
+          var taxAmount = Math.round(price * qty * (tax.rate || 0) * 100) / 100;
+          if (tax.type === 'IVA' && !tax.withholding) iva += taxAmount;
+          if (tax.type === 'ISR' && tax.withholding) isr += taxAmount;
+        }
+        // Impuestos locales
+        var localTaxes = (item.product && item.product.local_taxes) || [];
+        if (!Array.isArray(localTaxes)) localTaxes = Object.values(localTaxes);
+        for (var k = 0; k < localTaxes.length; k++) {
+          var lt = localTaxes[k];
+          var ltAmount = Math.round(price * qty * (lt.rate || 0) * 100) / 100;
+          if (lt.type === 'ISH') ish += ltAmount;
+        }
+      }
+
+      allInvoices.push({
+        id: inv.id,
+        uuid: inv.uuid || '',
+        date: inv.date || '',
+        status: inv.status || '',
+        cancellationStatus: inv.cancellation_status || 'none',
+        folioNumber: inv.folio_number || '',
+        series: inv.series || '',
+        customerName: (inv.customer && inv.customer.legal_name) || '',
+        customerRfc: (inv.customer && inv.customer.tax_id) || '',
+        total: inv.total || 0,
+        subtotal: Math.round(subtotal * 100) / 100,
+        iva: Math.round(iva * 100) / 100,
+        isr: Math.round(isr * 100) / 100,
+        ish: Math.round(ish * 100) / 100,
+        paymentForm: inv.payment_form || '',
+      });
+    }
+
+    // Paginación: Facturapi devuelve max 100, si hay menos ya terminamos
+    if (invoices.length < 100 || page >= 30) {
+      hasMore = false;
+    } else {
+      page++;
+    }
+  }
+
+  return allInvoices;
+}
+
+/**
+ * Mapea el tipo de pago de la app al código SAT.
+ */
+function mapPaymentForm_(tipoPago) {
+  var map = {
+    'Efectivo': '01',
+    'Tarjeta Débito': '28',
+    'Tarjeta Crédito': '04',
+    'Transferencia': '03',
+  };
+  return map[tipoPago] || '99'; // 99 = Por definir
+}
+
+/**
+ * Mapea el negocio al product_key del SAT.
+ */
+function mapProductKey_(negocio) {
+  if (negocio === 'casaregina') {
+    return '90111501'; // Servicios de hotelería
+  }
+  return '90101500'; // Servicios de restaurante y catering
+}
+
+/**
+ * Mapea el negocio a la descripción del concepto.
+ */
+function mapProductDescription_(negocio) {
+  if (negocio === 'casaregina') {
+    return 'Servicio de hospedaje';
+  }
+  return 'Consumo de alimentos y bebidas';
+}
+
+/**
+ * Crea o encuentra un cliente en Facturapi.
+ * Primero busca por RFC — si ya existe, lo reutiliza (evita error de nombre).
+ * Si no existe, lo crea nuevo.
+ */
+function findOrCreateCustomer_(data) {
+  var rfc = data.rfc.replace(/\s/g, '').toUpperCase();
+
+  // 1. Buscar cliente existente por RFC
+  try {
+    var searchRes = UrlFetchApp.fetch(
+      FACTURAPI_BASE + '/customers?tax_id=' + encodeURIComponent(rfc),
+      { method: 'get', headers: facturApiHeaders_(), muteHttpExceptions: true }
+    );
+    if (searchRes.getResponseCode() === 200) {
+      var searchBody = JSON.parse(searchRes.getContentText());
+      var existing = searchBody.data || [];
+      if (existing.length > 0) {
+        return existing[0].id; // reutilizar cliente existente
+      }
+    }
+  } catch (e) {
+    Logger.log('Error buscando cliente por RFC, intentando crear: ' + e.message);
+  }
+
+  // 2. No existe — crear nuevo
+  var payload = {
+    legal_name: data.razonSocial,
+    tax_id: rfc,
+    tax_system: data.regimen.split(' - ')[0].trim(), // solo el código: "626"
+    email: data.email,
+    address: {
+      zip: padCP_(data.codigoPostal),
+    },
+  };
+
+  if (data.telefono) {
+    payload.phone = data.telefono;
+  }
+
+  var response = UrlFetchApp.fetch(FACTURAPI_BASE + '/customers', {
+    method: 'post',
+    headers: facturApiHeaders_(),
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true,
+  });
+
+  var code = response.getResponseCode();
+  var body = JSON.parse(response.getContentText());
+
+  if (code === 200 || code === 201) {
+    return body.id;
+  }
+
+  throw new Error('Error creando cliente en Facturapi: ' + (body.message || JSON.stringify(body)));
+}
+
+/**
+ * Crea y timbra una factura CFDI en Facturapi.
+ */
+function isPersonaMoral_(rfc) {
+  // Persona moral: 12 caracteres. Persona física: 13 caracteres.
+  return rfc && rfc.replace(/\s/g, '').length === 12;
+}
+
+function createInvoice_(customerId, data) {
+  var monto = parseFloat(data.monto);
+  var negocio = data.negocio || 'mozzafiato';
+  var usoCfdi = data.usoCfdi.split(' - ')[0].trim(); // solo el código: "G03"
+  var esHotel = (negocio === 'casaregina');
+  var esMoral = isPersonaMoral_(data.rfc);
+
+  // Impuestos federales
+  var taxes = [{ type: 'IVA', rate: 0.16 }];
+
+  // Retención ISR 1.25% a personas morales (ambos negocios)
+  if (esMoral) {
+    taxes.push({ type: 'ISR', rate: 0.0125, factor: 'Tasa', withholding: true });
+  }
+
+  // Impuestos locales (ISH 5% Quintana Roo — solo hospedaje)
+  var localTaxes = [];
+  if (esHotel) {
+    localTaxes.push({ type: 'ISH', rate: 0.05, withholding: false });
+  }
+
+  // ── Calcular precio base sin impuestos (evita redondeo de 1 centavo) ──
+  // Facturapi trunca el Importe con tax_included:true, causando diferencias.
+  // Usamos tax_included:false con precio de 2 decimales para evitarlo.
+  var divisor = 1;
+  for (var i = 0; i < taxes.length; i++) {
+    divisor += taxes[i].withholding ? -taxes[i].rate : taxes[i].rate;
+  }
+  for (var i = 0; i < localTaxes.length; i++) {
+    divisor += localTaxes[i].withholding ? -localTaxes[i].rate : localTaxes[i].rate;
+  }
+  var precioBase = Math.round(monto / divisor * 100) / 100;
+
+  // Verificar que el total recalculado sea >= monto (preferible 1¢ arriba que abajo)
+  var totalCheck = precioBase;
+  for (var i = 0; i < taxes.length; i++) {
+    var imp = Math.round(precioBase * taxes[i].rate * 100) / 100;
+    totalCheck += taxes[i].withholding ? -imp : imp;
+  }
+  for (var i = 0; i < localTaxes.length; i++) {
+    var imp = Math.round(precioBase * localTaxes[i].rate * 100) / 100;
+    totalCheck += localTaxes[i].withholding ? -imp : imp;
+  }
+  totalCheck = Math.round(totalCheck * 100) / 100;
+  if (totalCheck < monto) {
+    precioBase = Math.round((precioBase + 0.01) * 100) / 100;
+  }
+
+  var descripcion = mapProductDescription_(negocio);
+  if (data.comentarios) {
+    descripcion += ' — ' + data.comentarios;
+  }
+
+  var item = {
+    quantity: 1,
+    product: {
+      description: descripcion,
+      product_key: mapProductKey_(negocio),
+      price: precioBase,
+      tax_included: false,
+      taxes: taxes,
+    },
+  };
+
+  if (localTaxes.length > 0) {
+    item.product.local_taxes = localTaxes;
+  }
+
+  var payload = {
+    type: 'I', // Ingreso
+    customer: customerId,
+    payment_form: mapPaymentForm_(data.tipoPago),
+    payment_method: 'PUE', // Pago en una sola exhibición
+    use: usoCfdi,
+    items: [item],
+  };
+
+  // Si hay folio/serie, agregarlo
+  if (data.folioPrefix) {
+    payload.series = data.folioPrefix;
+  }
+
+
+  var response = UrlFetchApp.fetch(FACTURAPI_BASE + '/invoices', {
+    method: 'post',
+    headers: facturApiHeaders_(),
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true,
+  });
+
+  var code = response.getResponseCode();
+  var body = JSON.parse(response.getContentText());
+
+  if (code === 200 || code === 201) {
+    return body;
+  }
+
+  throw new Error('Error creando factura en Facturapi: ' + (body.message || JSON.stringify(body)));
+}
+
+/**
+ * Descarga un archivo de Facturapi (PDF o XML) y lo regresa en base64.
+ */
+function downloadInvoiceFile_(invoiceId, format) {
+  var response = UrlFetchApp.fetch(
+    FACTURAPI_BASE + '/invoices/' + invoiceId + '/' + format,
+    {
+      method: 'get',
+      headers: { 'Authorization': 'Bearer ' + getFacturapiKey_() },
+      muteHttpExceptions: true,
+    }
+  );
+
+  if (response.getResponseCode() !== 200) {
+    throw new Error('Error descargando ' + format + ': ' + response.getContentText());
+  }
+
+  return Utilities.base64Encode(response.getContent());
+}
+
+/**
+ * Envía la factura por correo electrónico al cliente con PDF/XML adjuntos.
+ * CC a mozzafiatoamor@gmail.com para control interno.
+ */
+/**
+ * Genera el HTML del banner de cross-promo entre negocios.
+ * Mozzafiato → promueve Casa Regina (hospedaje)
+ * Casa Regina → promueve Mozzafiato (restaurante)
+ */
+function getCrossPromoBannerHtml_(negocio) {
+  // Leer promos dinámicas de la hoja 📢 Promos (si existe)
+  var defaults = {
+    mozzafiato: {
+      name: 'Casa Regina',
+      headline: '¿Buscas hospedaje en Playa del Carmen?',
+      tagline: 'Casa Regina Hotel Boutique te espera con habitaciones de lujo y la mejor ubicación.',
+      cta: 'Síguenos en Facebook',
+      link: 'https://www.facebook.com/share/1HwxUyNepJ/',
+      logo: LOGOS.casaregina,
+      accent: '#C9A84C',
+      bg: '#0C1F2B',
+      text: '#EDE8DA',
+    },
+    casaregina: {
+      name: 'Mozzafiato',
+      headline: '¿Se te antoja la mejor pizza artesanal?',
+      tagline: 'Visita Mozzafiato — auténtica cocina italiana con horno de leña.',
+      cta: 'Síguenos en Facebook',
+      link: 'https://www.facebook.com/share/1EruEYRtUC/',
+      logo: LOGOS.mozzafiato,
+      accent: '#C45C2C',
+      bg: '#1a120e',
+      text: '#f5ede8',
+    },
+  };
+  var p = defaults[negocio];
+  if (!p) return '';
+  // Recolectar todos los botones (múltiples filas por negocio)
+  var buttons = [{ cta: p.cta, link: p.link }];
+  try {
+    var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    var promoSheet = ss.getSheetByName('📢 Promos');
+    if (promoSheet) {
+      var rows = promoSheet.getDataRange().getValues();
+      var foundFirst = false;
+      buttons = []; // resetear defaults si la hoja existe
+      for (var i = 1; i < rows.length; i++) {
+        if (rows[i][0] === negocio && rows[i][3]) {
+          if (!foundFirst) {
+            p.headline = rows[i][1] || p.headline;
+            p.tagline = rows[i][2] || p.tagline;
+            foundFirst = true;
+          }
+          buttons.push({ cta: rows[i][3], link: rows[i][4] || '' });
+        }
+      }
+      if (buttons.length === 0) buttons = [{ cta: p.cta, link: p.link }];
+    }
+  } catch(e) { /* usar defaults */ }
+  // Generar HTML de botones
+  var buttonsHtml = '';
+  for (var b = 0; b < buttons.length; b++) {
+    if (b === 0) {
+      buttonsHtml += '      <a href="' + buttons[b].link + '" target="_blank" style="display:inline-block;padding:10px 24px;background:' + p.accent + ';color:' + p.bg + ';border-radius:8px;font-size:13px;font-weight:700;text-decoration:none;margin-bottom:6px;">' + buttons[b].cta + ' →</a>';
+    } else {
+      buttonsHtml += '<br>      <a href="' + buttons[b].link + '" target="_blank" style="display:inline-block;padding:8px 20px;background:transparent;color:' + p.accent + ';border:1px solid ' + p.accent + '60;border-radius:8px;font-size:12px;font-weight:700;text-decoration:none;margin-top:4px;">' + buttons[b].cta + ' →</a>';
+    }
+  }
+  return [
+    '  <div style="margin:0 16px 16px;border-radius:12px;overflow:hidden;border:1px solid ' + p.accent + '40;background:' + p.bg + ';">',
+    '    <div style="padding:20px;text-align:center;">',
+    p.logo ? '      <img src="' + p.logo + '" alt="' + p.name + '" style="max-height:50px;max-width:180px;width:auto;height:auto;object-fit:contain;display:block;margin:0 auto 12px;">' : '',
+    '      <div style="color:' + p.text + ';font-size:14px;font-weight:700;margin-bottom:6px;">' + p.headline + '</div>',
+    '      <div style="color:' + p.text + '99;font-size:12px;line-height:1.5;margin-bottom:14px;">' + p.tagline + '</div>',
+    buttonsHtml,
+    '    </div>',
+    '  </div>',
+  ].join('\n');
+}
+
+function sendInvoiceEmailCustom_(invoiceId, data, pdfBase64, xmlBase64) {
+  try {
+    var negocioName = data.negocio === 'casaregina' ? 'Casa Regina' : 'Mozzafiato';
+    var montoFmt = '$' + Number(data.monto).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+    var headerBg = data.negocio === 'casaregina' ? '#0C1F2B' : '#1a120e';
+    var accentColor = data.negocio === 'casaregina' ? '#C9A84C' : '#C45C2C';
+    var headerText = data.negocio === 'casaregina' ? '#EDE8DA' : '#f5ede8';
+
+    // Filas opcionales: recibo y fecha de solicitud
+    var reciboRow = data.recibo
+      ? '      <tr><td style="padding:8px 12px;font-weight:600;color:#555;">Recibo #</td><td style="padding:8px 12px;color:#333;font-weight:600;">' + data.recibo + '</td></tr>'
+      : '';
+    var fechaSolRow = data.fechaSolicitud
+      ? '      <tr style="background:#f0f0f0;"><td style="padding:8px 12px;font-weight:600;color:#555;">Fecha de solicitud</td><td style="padding:8px 12px;color:#333;">' + data.fechaSolicitud + '</td></tr>'
+      : '';
+
+    var htmlBody = [
+      '<div style="font-family:sans-serif;max-width:500px;margin:0 auto;background:#f9f9f9;border-radius:12px;overflow:hidden;">',
+      '  <div style="background:' + headerBg + ';padding:24px;text-align:center;">',
+      getLogoUrl_(data.negocio) ? '    <img src="' + getLogoUrl_(data.negocio) + '" alt="' + negocioName + '" style="max-height:100px;max-width:280px;width:auto;height:auto;object-fit:contain;display:block;margin:0 auto;">' : '',
+      '    <div style="color:' + accentColor + ';font-size:13px;margin-top:8px;">Factura Electrónica</div>',
+      '  </div>',
+      '  <div style="padding:24px;">',
+      '    <p style="color:#333;font-size:15px;">Hola <strong>' + data.razonSocial + '</strong>,</p>',
+      '    <p style="color:#555;font-size:14px;">Tu factura ha sido generada exitosamente. Encontrarás los archivos PDF y XML adjuntos a este correo.</p>',
+      '    <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:14px;">',
+      '      <tr style="background:#f0f0f0;"><td style="padding:8px 12px;font-weight:600;color:#555;width:40%;">RFC</td><td style="padding:8px 12px;color:#333;font-family:monospace;">' + data.rfc + '</td></tr>',
+      '      <tr><td style="padding:8px 12px;font-weight:600;color:#555;">Razón Social</td><td style="padding:8px 12px;color:#333;">' + data.razonSocial + '</td></tr>',
+      '      <tr style="background:#f0f0f0;"><td style="padding:8px 12px;font-weight:600;color:#555;">Monto</td><td style="padding:8px 12px;color:#1a120e;font-weight:700;font-size:16px;">' + montoFmt + '</td></tr>',
+      reciboRow,
+      fechaSolRow,
+      '    </table>',
+      '    <div style="background:#d4edda;border:1px solid #28a745;border-radius:8px;padding:12px;margin:16px 0;font-size:14px;color:#155724;text-align:center;">',
+      '      ✅ <strong>Factura timbrada exitosamente</strong>',
+      '    </div>',
+      '    <p style="color:#888;font-size:12px;">Este es un correo automático. Si tienes dudas, contacta a ' + negocioName + '.</p>',
+      '  </div>',
+      // ── Cross-promo banner ──
+      getCrossPromoBannerHtml_(data.negocio),
+      '  <div style="background:' + headerBg + ';padding:16px;text-align:center;">',
+      '    <div style="color:' + accentColor + ';font-size:12px;">' + negocioName + ' · Facturación Electrónica</div>',
+      '  </div>',
+      '</div>'
+    ].join('\n');
+
+    var pdfBlob = Utilities.newBlob(Utilities.base64Decode(pdfBase64), 'application/pdf', 'Factura_' + data.rfc + '.pdf');
+    var xmlBlob = Utilities.newBlob(Utilities.base64Decode(xmlBase64), 'application/xml', 'Factura_' + data.rfc + '.xml');
+
+    MailApp.sendEmail({
+      to: data.email,
+      cc: 'mozzafiatoamor@gmail.com',
+      subject: 'Tu factura electrónica — ' + negocioName,
+      htmlBody: htmlBody,
+      attachments: [pdfBlob, xmlBlob],
+      name: negocioName + ' Facturas',
+    });
+  } catch (e) {
+    Logger.log('Error enviando email de factura: ' + e.message);
+  }
+}
+
+/**
+ * Función principal: timbra una factura completa.
+ * Llamada desde el frontend con action: 'timbrarFactura'.
+ *
+ * Recibe: { rfc, razonSocial, regimen, usoCfdi, email, codigoPostal,
+ *           telefono, monto, tipoPago, negocio, folioPrefix, mesa, mesero }
+ * Regresa: { success, invoiceId, uuid, pdfBase64, xmlBase64 }
+ */
+function timbrarFactura_(data) {
+  // 1. Crear/encontrar cliente
+  var customerId = findOrCreateCustomer_(data);
+
+  // 2. Crear y timbrar factura
+  var invoice = createInvoice_(customerId, data);
+
+  // 3. Descargar PDF y XML
+  var pdfBase64 = downloadInvoiceFile_(invoice.id, 'pdf');
+  var xmlBase64 = downloadInvoiceFile_(invoice.id, 'xml');
+
+  // 4. Enviar por email con PDF/XML adjuntos + CC a mozzafiatoamor
+  sendInvoiceEmailCustom_(invoice.id, data, pdfBase64, xmlBase64);
+
+  return {
+    invoiceId: invoice.id,
+    uuid: invoice.uuid || '',
+    folioNumber: invoice.folio_number || '',
+    pdfBase64: pdfBase64,
+    xmlBase64: xmlBase64,
+  };
+}
+
+/**
+ * Cancela una factura en Facturapi y devuelve el acuse de cancelación.
+ * Motivos SAT: '01' = Comprobante emitido con errores con relación
+ *               '02' = Comprobante emitido con errores sin relación
+ *               '03' = No se llevó a cabo la operación
+ *               '04' = Operación nominativa relacionada (sustituye)
+ */
+function cancelInvoice_(invoiceId, motive, substitution) {
+  var mot = motive || '02';
+  var url = FACTURAPI_BASE + '/invoices/' + invoiceId + '?motive=' + mot;
+  if (mot === '01' && substitution) {
+    url += '&substitution=' + encodeURIComponent(substitution);
+  }
+
+  var response = UrlFetchApp.fetch(url, {
+    method: 'delete',
+    headers: facturApiHeaders_(),
+    muteHttpExceptions: true,
+  });
+
+  var code = response.getResponseCode();
+  var body = JSON.parse(response.getContentText());
+
+  if (code !== 200 && code !== 201) {
+    throw new Error('Error cancelando factura: ' + (body.message || JSON.stringify(body)));
+  }
+
+  // Descargar acuse de cancelación en PDF
+  var acusePdf = '';
+  try {
+    var acuseRes = UrlFetchApp.fetch(
+      FACTURAPI_BASE + '/invoices/' + invoiceId + '/cancellation_receipt/pdf',
+      {
+        method: 'get',
+        headers: { 'Authorization': 'Bearer ' + getFacturapiKey_() },
+        muteHttpExceptions: true,
+      }
+    );
+    if (acuseRes.getResponseCode() === 200) {
+      acusePdf = Utilities.base64Encode(acuseRes.getContent());
+    }
+  } catch (e) {
+    Logger.log('No se pudo descargar acuse: ' + e.message);
+  }
+
+  return {
+    status: body.cancellation_status || body.status || 'pending',
+    uuid: body.uuid || '',
+    acusePdfBase64: acusePdf,
+  };
+}
+
+/**
+ * Descarga el acuse de cancelación de una factura ya cancelada.
+ * Se puede llamar en cualquier momento después de cancelar.
+ * Si el SAT aún no procesa, devuelve string vacío.
+ */
+function downloadCancellationReceipt_(invoiceId) {
+  var acusePdf = '';
+  var acuseXml = '';
+  try {
+    var pdfRes = UrlFetchApp.fetch(
+      FACTURAPI_BASE + '/invoices/' + invoiceId + '/cancellation_receipt/pdf',
+      { method: 'get', headers: { 'Authorization': 'Bearer ' + getFacturapiKey_() }, muteHttpExceptions: true }
+    );
+    if (pdfRes.getResponseCode() === 200) {
+      acusePdf = Utilities.base64Encode(pdfRes.getContent());
+    }
+  } catch (e) { Logger.log('Error descargando acuse PDF: ' + e.message); }
+
+  try {
+    var xmlRes = UrlFetchApp.fetch(
+      FACTURAPI_BASE + '/invoices/' + invoiceId + '/cancellation_receipt/xml',
+      { method: 'get', headers: { 'Authorization': 'Bearer ' + getFacturapiKey_() }, muteHttpExceptions: true }
+    );
+    if (xmlRes.getResponseCode() === 200) {
+      acuseXml = Utilities.base64Encode(xmlRes.getContent());
+    }
+  } catch (e) { Logger.log('Error descargando acuse XML: ' + e.message); }
+
+  return { acusePdfBase64: acusePdf, acuseXmlBase64: acuseXml };
+}
+
+/**
+ * Descarga PDF y XML de una factura timbrada.
+ * Endpoints: GET /v2/invoices/{id}/pdf  y  GET /v2/invoices/{id}/xml
+ */
+function downloadInvoiceFiles_(invoiceId) {
+  var pdfB64 = '';
+  var xmlB64 = '';
+  try {
+    var pdfRes = UrlFetchApp.fetch(
+      FACTURAPI_BASE + '/invoices/' + invoiceId + '/pdf',
+      { method: 'get', headers: { 'Authorization': 'Bearer ' + getFacturapiKey_() }, muteHttpExceptions: true }
+    );
+    if (pdfRes.getResponseCode() === 200) {
+      pdfB64 = Utilities.base64Encode(pdfRes.getContent());
+    }
+  } catch (e) { Logger.log('Error descargando factura PDF: ' + e.message); }
+
+  try {
+    var xmlRes = UrlFetchApp.fetch(
+      FACTURAPI_BASE + '/invoices/' + invoiceId + '/xml',
+      { method: 'get', headers: { 'Authorization': 'Bearer ' + getFacturapiKey_() }, muteHttpExceptions: true }
+    );
+    if (xmlRes.getResponseCode() === 200) {
+      xmlB64 = Utilities.base64Encode(xmlRes.getContent());
+    }
+  } catch (e) { Logger.log('Error descargando factura XML: ' + e.message); }
+
+  return { pdfBase64: pdfB64, xmlBase64: xmlB64 };
+}
+
+/**
+ * Envía un email de pre-factura (sin timbrar) al cliente para que revise los datos.
+ */
+function sendPreFactura_(data) {
+  var negocioName = data.negocioName || 'Mozzafiato';
+  var montoNum = parseFloat(data.monto) || 0;
+  var montoFmt = '$' + montoNum.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  var subject = 'Pre-factura para revisión — ' + negocioName + ' · ' + (data.solId || '');
+  var logoUrl = getLogoUrl_(data.negocio);
+  var headerImg = logoUrl
+    ? '<img src="' + logoUrl + '" alt="' + negocioName + '" style="max-height:100px;max-width:280px;width:auto;height:auto;object-fit:contain;display:block;margin:0 auto 10px;">'
+    : '<div style="font-size:36px;margin-bottom:8px;">📄</div>';
+
+  var htmlBody = [
+    '<div style="font-family:sans-serif;max-width:500px;margin:0 auto;background:#f9f9f9;border-radius:12px;overflow:hidden;">',
+    '  <div style="background:#1a120e;padding:24px;text-align:center;">',
+    '    ' + headerImg,
+    '    <div style="color:#9a8680;font-size:13px;margin-top:8px;">Pre-Factura — Revisión de Datos</div>',
+    '  </div>',
+    '  <div style="padding:24px;">',
+    '    <p style="color:#333;font-size:15px;">Hola <strong>' + (data.razonSocial || '') + '</strong>,</p>',
+    '    <p style="color:#555;font-size:14px;">Antes de timbrar tu factura, te enviamos los datos para que los revises. Si todo está correcto, responde este correo confirmando. Si hay algún error, indícanos qué corregir.</p>',
+    '    <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:14px;">',
+    '      <tr style="background:#f0f0f0;"><td style="padding:8px 12px;font-weight:600;color:#555;width:40%;">Folio</td><td style="padding:8px 12px;color:#333;">' + (data.solId || '—') + '</td></tr>',
+    '      <tr><td style="padding:8px 12px;font-weight:600;color:#555;">Fecha</td><td style="padding:8px 12px;color:#333;">' + (data.fecha || '') + ' ' + (data.hora || '') + '</td></tr>',
+    '      <tr style="background:#f0f0f0;"><td style="padding:8px 12px;font-weight:600;color:#555;">Monto</td><td style="padding:8px 12px;color:#1a120e;font-weight:700;font-size:16px;">' + montoFmt + '</td></tr>',
+    '      <tr><td style="padding:8px 12px;font-weight:600;color:#555;">Tipo de Pago</td><td style="padding:8px 12px;color:#333;">' + (data.tipoPago || '—') + '</td></tr>',
+    '      <tr style="background:#f0f0f0;"><td style="padding:8px 12px;font-weight:600;color:#555;">RFC</td><td style="padding:8px 12px;color:#333;font-family:monospace;">' + (data.rfc || '') + '</td></tr>',
+    '      <tr><td style="padding:8px 12px;font-weight:600;color:#555;">Razón Social</td><td style="padding:8px 12px;color:#333;">' + (data.razonSocial || '') + '</td></tr>',
+    '      <tr style="background:#f0f0f0;"><td style="padding:8px 12px;font-weight:600;color:#555;">Régimen Fiscal</td><td style="padding:8px 12px;color:#333;">' + (data.regimen || '') + '</td></tr>',
+    '      <tr><td style="padding:8px 12px;font-weight:600;color:#555;">Uso de CFDI</td><td style="padding:8px 12px;color:#333;">' + (data.usoCfdi || '') + '</td></tr>',
+    '      <tr style="background:#f0f0f0;"><td style="padding:8px 12px;font-weight:600;color:#555;">Código Postal</td><td style="padding:8px 12px;color:#333;">' + (data.codigoPostal || '—') + '</td></tr>',
+    '    </table>',
+    '    <div style="background:#e3f2fd;border:1px solid #42a5f5;border-radius:8px;padding:12px;margin:16px 0;font-size:13px;color:#1565c0;">',
+    '      📄 <strong>Esta NO es una factura timbrada.</strong> Es una pre-factura para que revises que los datos estén correctos antes de generar el CFDI.',
+    '    </div>',
+    '    <p style="color:#555;font-size:13px;">Responde a este correo con tu confirmación o correcciones.</p>',
+    '  </div>',
+    '  <div style="background:#1a120e;padding:16px;text-align:center;">',
+    '    <div style="color:#9a8680;font-size:12px;">' + negocioName + ' · Pre-factura ' + (data.solId || '') + ' · ' + (data.fecha || '') + '</div>',
+    '  </div>',
+    '</div>'
+  ].join('\n');
+
+  MailApp.sendEmail({
+    to: data.email,
+    subject: subject,
+    htmlBody: htmlBody,
+    name: negocioName + ' Facturas'
+  });
+}
+
+// ============================================================
+// LOYVERSE — Validación de recibo contra POS
+// ============================================================
+
+/**
+ * Consulta un recibo en Loyverse por su número y retorna el total.
+ * El API Token de Loyverse se guarda en Script Properties como LOYVERSE_TOKEN.
+ * @param {string} receiptNumber — Número de recibo (ej: "1-1008" o "1008")
+ * @returns {{ found: boolean, total?: number, receiptNumber?: string, error?: string }}
+ */
+function validateReciboLoyverse_(receiptNumber) {
+  var props = PropertiesService.getScriptProperties();
+  var token = props.getProperty('LOYVERSE_TOKEN');
+  if (!token) {
+    return { found: false, error: 'LOYVERSE_TOKEN no configurado en Script Properties' };
+  }
+
+  // Loyverse receipt numbers suelen tener formato "STORE-NUMBER" (ej: "1-1008")
+  // Si el usuario solo pone el número, intentamos con formato "1-NUMBER" primero
+  var attempts = [receiptNumber];
+  if (!/^\d+-/.test(receiptNumber)) {
+    // No tiene prefijo de tienda, probar con "1-" (tienda principal)
+    attempts.unshift('1-' + receiptNumber);
+  }
+
+  for (var i = 0; i < attempts.length; i++) {
+    var num = attempts[i];
+    try {
+      var url = 'https://api.loyverse.com/v1.0/receipts/' + encodeURIComponent(num);
+      var res = UrlFetchApp.fetch(url, {
+        method: 'get',
+        headers: {
+          'Authorization': 'Bearer ' + token,
+          'Accept': 'application/json'
+        },
+        muteHttpExceptions: true
+      });
+
+      var code = res.getResponseCode();
+      if (code === 200) {
+        var data = JSON.parse(res.getContentText());
+        // Calcular total del recibo sumando line items
+        var total = 0;
+        if (data.total_money !== undefined) {
+          total = data.total_money;
+        } else if (data.line_items && data.line_items.length > 0) {
+          for (var j = 0; j < data.line_items.length; j++) {
+            total += (data.line_items[j].total_money || 0);
+          }
+        }
+        return {
+          found: true,
+          total: total,
+          receiptNumber: data.receipt_number || num
+        };
+      }
+      // 404 = no encontrado, seguir con el siguiente intento
+      if (code !== 404) {
+        Logger.log('Loyverse API error ' + code + ': ' + res.getContentText());
+      }
+    } catch (e) {
+      Logger.log('Error consultando Loyverse: ' + e.message);
+    }
+  }
+
+  return { found: false, error: 'Recibo no encontrado en Loyverse' };
+}

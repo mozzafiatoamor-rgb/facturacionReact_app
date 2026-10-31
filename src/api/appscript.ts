@@ -181,6 +181,18 @@ export async function downloadInvoice(invoiceId: string): Promise<InvoiceFilesRe
   return post<InvoiceFilesResult>({ action: 'downloadInvoice', invoiceId })
 }
 
+// ── VALIDAR RECIBO LOYVERSE ──────────────────────────────
+export interface ReciboValidation {
+  found: boolean
+  total: number
+  receiptNumber: string
+  error: string | null
+}
+
+export async function validateRecibo(receiptNumber: string): Promise<ReciboValidation> {
+  return post<ReciboValidation>({ action: 'validateRecibo', receiptNumber })
+}
+
 // ── GUARDAR PROMOS ───────────────────────────────────────
 export async function savePromos(promos: { negocio: string; headline: string; tagline: string; cta: string; link: string }[]): Promise<void> {
   await post({ action: 'savePromos', promos })
