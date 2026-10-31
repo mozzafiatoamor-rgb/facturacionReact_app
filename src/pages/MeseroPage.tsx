@@ -43,6 +43,7 @@ export function MeseroPage({ initial, onGenerarFactura, onBack, userName }: Mese
     if (!mesa.trim()) { toast('Ingresa el número de mesa / habitación', 'error'); return false }
     if (!monto || parseFloat(monto) <= 0) { toast('Monto inválido', 'error'); return false }
     if (!tipoPago) { toast('Selecciona el tipo de pago', 'error'); return false }
+    if (negocio === 'mozzafiato' && !recibo.trim()) { toast('Ingresa el número de recibo', 'error'); return false }
     return true
   }
 
@@ -271,7 +272,7 @@ export function MeseroPage({ initial, onGenerarFactura, onBack, userName }: Mese
                 {/* Recibo # (solo Mozzafiato) */}
                 {negocio === 'mozzafiato' && (
                   <div className="mb-4">
-                    <label className="block text-xs text-muted font-medium mb-1.5">Recibo #</label>
+                    <label className="block text-xs text-muted font-medium mb-1.5">Recibo # <span className="text-red-400">*</span></label>
                     <input
                       value={recibo}
                       onChange={(e) => setRecibo(e.target.value)}

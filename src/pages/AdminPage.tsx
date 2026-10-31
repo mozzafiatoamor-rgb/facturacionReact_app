@@ -145,7 +145,7 @@ export function AdminPage({ onNavigate }: AdminPageProps) {
 
   // ── Fetch links al cambiar a tab Mensajes ──
   useEffect(() => {
-    if (tab === 'mensajes' && !linksLoaded) {
+    if ((tab === 'mensajes' || tab === 'facturacion') && !linksLoaded) {
       setLoadingLinks(true)
       fetchLinks()
         .then(setLinks)
@@ -336,33 +336,66 @@ export function AdminPage({ onNavigate }: AdminPageProps) {
     inv.status === 'canceled' ||
     (inv.cancellationStatus !== 'none' && inv.cancellationStatus !== '')
 
+  // Build a map of recibo by invoice monto+RFC for cross-referencing with links
+  const reciboByInvoice = useMemo(() => {
+    const map = new Map<string, string>()
+    links.forEach(lnk => {
+      if (lnk.recibo) {
+        // key = RFC-like match isn't possible here, so map by monto
+        // We'll just search recibo across all links when user types a recibo number
+        map.set(lnk.code, lnk.recibo)
+      }
+    })
+    return map
+  }, [links])
+
+  // Get all recibo values from links for searching
+  const allRecibos = useMemo(() => {
+    return links.filter(lnk => lnk.recibo).map(lnk => ({
+      recibo: lnk.recibo!,
+      monto: lnk.monto,
+      rfc: '', // links don't have RFC, we match by monto
+    }))
+  }, [links])
+
+  const matchesSearch = useCallback((inv: FacturapiInvoice, q: string) => {
+    // Direct invoice fields
+    if (
+      inv.customerRfc.toLowerCase().includes(q) ||
+      inv.customerName.toLowerCase().includes(q) ||
+      String(inv.folioNumber).includes(q) ||
+      inv.uuid.toLowerCase().includes(q) ||
+      String(inv.total).includes(q)
+    ) return true
+
+    // Cross-reference recibo from links: match if any link with this recibo
+    // has the same monto as this invoice
+    const matchingRecibo = allRecibos.find(r =>
+      r.recibo.toLowerCase().includes(q) &&
+      Math.abs(parseFloat(r.monto) - inv.total) < 0.01
+    )
+    if (matchingRecibo) return true
+
+    return false
+  }, [allRecibos])
+
   const filteredInvoices = useMemo(() => {
     let list = invoices.filter(inv => !isCancelled(inv))
     if (invSearch) {
       const q = invSearch.toLowerCase()
-      list = list.filter(inv =>
-        inv.customerRfc.toLowerCase().includes(q) ||
-        inv.customerName.toLowerCase().includes(q) ||
-        String(inv.folioNumber).includes(q) ||
-        inv.uuid.toLowerCase().includes(q)
-      )
+      list = list.filter(inv => matchesSearch(inv, q))
     }
     return list
-  }, [invoices, invSearch])
+  }, [invoices, invSearch, matchesSearch])
 
   const cancelledInvoices = useMemo(() => {
     let list = invoices.filter(inv => isCancelled(inv))
     if (invSearch) {
       const q = invSearch.toLowerCase()
-      list = list.filter(inv =>
-        inv.customerRfc.toLowerCase().includes(q) ||
-        inv.customerName.toLowerCase().includes(q) ||
-        String(inv.folioNumber).includes(q) ||
-        inv.uuid.toLowerCase().includes(q)
-      )
+      list = list.filter(inv => matchesSearch(inv, q))
     }
     return list
-  }, [invoices, invSearch])
+  }, [invoices, invSearch, matchesSearch])
 
   const invSummary = useMemo(() => {
     const active = invoices.filter(inv => !isCancelled(inv))
@@ -632,7 +665,7 @@ export function AdminPage({ onNavigate }: AdminPageProps) {
                 </div>
 
                 {/* Búsqueda */}
-                <SearchBar value={invSearch} onChange={setInvSearch} placeholder="Buscar RFC, razón social, folio..." />
+                <SearchBar value={invSearch} onChange={setInvSearch} placeholder="Buscar RFC, razón social, folio, monto, recibo..." />
 
                 {/* ── Lista de facturas procesadas ── */}
                 {invFilter === 'active' && (
