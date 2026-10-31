@@ -32,6 +32,7 @@ export function MeseroPage({ initial, onGenerarFactura, onBack, userName }: Mese
   const [monto,    setMonto   ] = useState(initial?.monto    ?? '')
   const [tipoPago, setTipoPago] = useState(initial?.tipoPago ?? '')
   const [notas,    setNotas   ] = useState(initial?.notas    ?? '')
+  const [recibo,   setRecibo  ] = useState('')
   const [whatsapp, setWhatsapp] = useState('')
   const [sendingLink, setSendingLink] = useState(false)
   const [copyingLink, setCopyingLink] = useState(false)
@@ -63,6 +64,7 @@ export function MeseroPage({ initial, onGenerarFactura, onBack, userName }: Mese
         fecha: date,
         hora: time,
         negocio,
+        ...(recibo.trim() ? { recibo: recibo.trim() } : {}),
       })
       const neg = getNegocio(negocio)
       const waUrl = buildWhatsAppUrl(num, url, monto, neg.name)
@@ -82,12 +84,14 @@ export function MeseroPage({ initial, onGenerarFactura, onBack, userName }: Mese
     setCopied(false)
     try {
       const { date, time } = now()
+      const reciboVal = recibo.trim() || undefined
       const url = await buildLlevarUrl({
         mesa: mesa.trim(), monto, tipoPago,
         mesero: userName, fecha: date, hora: time, negocio,
+        ...(reciboVal ? { recibo: reciboVal } : {}),
       })
       const neg = getNegocio(negocio)
-      const msg = buildWhatsAppMessage(url, monto, neg.name, date)
+      const msg = buildWhatsAppMessage(url, monto, neg.name, date, reciboVal)
       await navigator.clipboard.writeText(msg)
       setCopied(true)
       toast('Mensaje copiado al portapapeles')
@@ -101,7 +105,7 @@ export function MeseroPage({ initial, onGenerarFactura, onBack, userName }: Mese
 
   function handleGenerarFactura() {
     if (!validate()) return
-    onGenerarFactura({ mesa: mesa.trim(), monto, tipoPago, notas: notas.trim(), mesero: userName, negocio })
+    onGenerarFactura({ mesa: mesa.trim(), monto, tipoPago, notas: notas.trim(), mesero: userName, negocio, recibo: recibo.trim() || undefined })
   }
 
   const neg = negocio ? getNegocio(negocio) : null
@@ -263,6 +267,22 @@ export function MeseroPage({ initial, onGenerarFactura, onBack, userName }: Mese
                     />
                   </div>
                 </div>
+
+                {/* Recibo # (solo Mozzafiato) */}
+                {negocio === 'mozzafiato' && (
+                  <div className="mb-4">
+                    <label className="block text-xs text-muted font-medium mb-1.5">Recibo #</label>
+                    <input
+                      value={recibo}
+                      onChange={(e) => setRecibo(e.target.value)}
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="Ej: 1234"
+                      className="input"
+                      autoComplete="off"
+                    />
+                  </div>
+                )}
 
                 {/* Tipo de pago */}
                 <div className="mb-4">

@@ -164,7 +164,7 @@ export function AdminPage({ onNavigate }: AdminPageProps) {
   async function handleCopyMessage(link: LinkRecord) {
     const neg = NEGOCIOS[link.negocio as keyof typeof NEGOCIOS]
     const url = reconstructLlevarUrl(link.code)
-    const msg = buildWhatsAppMessage(url, link.monto, neg?.name ?? 'Mozzafiato', link.fecha)
+    const msg = buildWhatsAppMessage(url, link.monto, neg?.name ?? 'Mozzafiato', link.fecha, link.recibo)
     await navigator.clipboard.writeText(msg)
     setCopiedLinkId(link.code)
     toast('Mensaje copiado al portapapeles')
@@ -912,6 +912,7 @@ export function AdminPage({ onNavigate }: AdminPageProps) {
                       </div>
                       <p className="text-xs text-muted mt-0.5">
                         {fmt$(link.monto)} · {link.tipoPago} · {link.mesero}
+                        {link.recibo ? ` · Recibo #${link.recibo}` : ''}
                       </p>
                       <p className="text-[10px] text-muted/60 mt-0.5">{createdDate}</p>
                     </div>

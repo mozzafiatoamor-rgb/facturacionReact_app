@@ -321,6 +321,8 @@ export function LlevarPage({ data }: LlevarPageProps) {
         monto: data.monto, tipoPago: data.tipoPago, negocio: data.negocio,
         folioPrefix: neg.folioPrefix, mesa: data.mesa, mesero: data.mesero,
         comentarios: form.comentarios || undefined,
+        recibo: data.recibo || undefined,
+        fechaSolicitud: data.fecha || undefined,
       })
 
       if (!result.success) {

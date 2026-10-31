@@ -147,6 +147,7 @@ export async function fetchLinks(): Promise<LinkRecord[]> {
         fecha:    String(payload.f ?? ''),
         hora:     String(payload.h ?? ''),
         negocio:  String(payload.n ?? 'mozzafiato'),
+        ...(payload.r ? { recibo: String(payload.r) } : {}),
         creado:   r[2] ?? '',
         expira:   r[3] ?? '',
         expired:  expTs > 0 && now > expTs,

@@ -15,6 +15,7 @@ export interface LlevarData {
   hora: string
   negocio: string    // 'mozzafiato' | 'casaregina'
   exp: number        // timestamp de expiración
+  recibo?: string    // número de recibo (solo Mozzafiato)
   linkCode?: string  // código único del link (6 chars)
   config?: AppConfig // config embebida para dispositivo del cliente (legacy)
 }
@@ -38,6 +39,7 @@ interface CompactPayload {
   h: string  // hora
   n: string  // negocio
   e: number  // exp
+  r?: string // recibo (solo Mozzafiato)
   // Config compacta
   s: string  // sheetId
   a: string  // apiKey
@@ -62,6 +64,7 @@ export function encodeLlevar(data: Omit<LlevarData, 'exp' | 'config'>): string {
     w: data.mesero, f: data.fecha, h: data.hora,
     n: data.negocio || 'mozzafiato',
     e: Date.now() + msToEndOfMonth(),
+    ...(data.recibo ? { r: data.recibo } : {}),
     s: cfg.sheetId, a: cfg.apiKey, u: cfg.scriptUrl,
   }
   const json = JSON.stringify(payload)
@@ -85,6 +88,7 @@ export function decodeLlevar(encoded: string): LlevarData | null {
         mesero: raw.w, fecha: raw.f, hora: raw.h,
         negocio: raw.n || 'mozzafiato',
         exp: raw.e,
+        ...(raw.r ? { recibo: raw.r } : {}),
       }
       if (raw.s && raw.a && raw.u) {
         data.config = { sheetId: raw.s, apiKey: raw.a, scriptUrl: raw.u }
@@ -160,6 +164,7 @@ export async function buildLlevarUrl(data: Omit<LlevarData, 'exp' | 'config'>): 
       w: data.mesero, f: data.fecha, h: data.hora,
       n: data.negocio || 'mozzafiato',
       e: Date.now() + msToEndOfMonth(),
+      ...(data.recibo ? { r: data.recibo } : {}),
     })
     // CODE.DEPLOYMENT_ID — el cliente puede reconstruir el scriptUrl
     return `${base}?llevar=${code}.${deployId}`
@@ -216,6 +221,7 @@ export async function resolveShortLink(param: string): Promise<LlevarData | null
       hora: p.h as string,
       negocio: (p.n as string) || 'mozzafiato',
       exp: p.e as number,
+      ...(p.r ? { recibo: p.r as string } : {}),
       linkCode: code,
       config,
     }
@@ -227,17 +233,20 @@ export async function resolveShortLink(param: string): Promise<LlevarData | null
 /**
  * Genera el link de WhatsApp con mensaje prellenado.
  */
-export function buildWhatsAppMessage(llevarUrl: string, monto: string, negocioName = 'Mozzafiato', fecha?: string): string {
+export function buildWhatsAppMessage(llevarUrl: string, monto: string, negocioName = 'Mozzafiato', fecha?: string, recibo?: string): string {
   // Calcular último día del mes actual
   const now = new Date()
   const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0)
   const limitStr = lastDay.toLocaleDateString('es-MX', { day: 'numeric', month: 'long' })
   const fechaStr = fecha || now.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' })
 
+  const reciboLine = recibo ? `🔖 *Recibo #:* ${recibo}\n` : ''
+
   return (
     `¡Hola! Gracias por tu preferencia en *${negocioName}* 🍕\n\n` +
     `Aquí tienes tu enlace para generar tu factura:\n\n` +
     `📅 *Fecha:* ${fechaStr}\n` +
+    reciboLine +
     `💰 *Monto:* $${monto}\n` +
     `🧾 *Link:* ${llevarUrl}\n\n` +
     `Solo abre el enlace, ingresa tus datos fiscales y descarga tu factura al instante (PDF y XML).\n\n` +

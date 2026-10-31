@@ -156,6 +156,7 @@ export default function App() {
       hora: time,
       negocio: o.negocio,
       exp: Date.now() + msToEndOfMonth(),
+      ...(o.recibo ? { recibo: o.recibo } : {}),
     })
   }
 

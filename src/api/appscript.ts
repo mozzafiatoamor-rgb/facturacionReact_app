@@ -100,6 +100,8 @@ export interface TimbradoInput {
   mesa?: string
   mesero?: string
   comentarios?: string
+  recibo?: string         // número de recibo (solo Mozzafiato)
+  fechaSolicitud?: string // fecha en que se generó el link
 }
 
 export interface TimbradoResult {
@@ -194,6 +196,7 @@ export interface LinkPayload {
   h: string   // hora
   n: string   // negocio
   e: number   // exp timestamp
+  r?: string  // recibo (solo Mozzafiato)
 }
 
 export async function createLink(payload: LinkPayload): Promise<string> {

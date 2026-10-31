@@ -440,6 +440,14 @@ function sendInvoiceEmailCustom_(invoiceId, data, pdfBase64, xmlBase64) {
     var accentColor = data.negocio === 'casaregina' ? '#C9A84C' : '#C45C2C';
     var headerText = data.negocio === 'casaregina' ? '#EDE8DA' : '#f5ede8';
 
+    // Filas opcionales: recibo y fecha de solicitud
+    var reciboRow = data.recibo
+      ? '      <tr><td style="padding:8px 12px;font-weight:600;color:#555;">Recibo #</td><td style="padding:8px 12px;color:#333;font-weight:600;">' + data.recibo + '</td></tr>'
+      : '';
+    var fechaSolRow = data.fechaSolicitud
+      ? '      <tr style="background:#f0f0f0;"><td style="padding:8px 12px;font-weight:600;color:#555;">Fecha de solicitud</td><td style="padding:8px 12px;color:#333;">' + data.fechaSolicitud + '</td></tr>'
+      : '';
+
     var htmlBody = [
       '<div style="font-family:sans-serif;max-width:500px;margin:0 auto;background:#f9f9f9;border-radius:12px;overflow:hidden;">',
       '  <div style="background:' + headerBg + ';padding:24px;text-align:center;">',
@@ -453,6 +461,8 @@ function sendInvoiceEmailCustom_(invoiceId, data, pdfBase64, xmlBase64) {
       '      <tr style="background:#f0f0f0;"><td style="padding:8px 12px;font-weight:600;color:#555;width:40%;">RFC</td><td style="padding:8px 12px;color:#333;font-family:monospace;">' + data.rfc + '</td></tr>',
       '      <tr><td style="padding:8px 12px;font-weight:600;color:#555;">Razón Social</td><td style="padding:8px 12px;color:#333;">' + data.razonSocial + '</td></tr>',
       '      <tr style="background:#f0f0f0;"><td style="padding:8px 12px;font-weight:600;color:#555;">Monto</td><td style="padding:8px 12px;color:#1a120e;font-weight:700;font-size:16px;">' + montoFmt + '</td></tr>',
+      reciboRow,
+      fechaSolRow,
       '    </table>',
       '    <div style="background:#d4edda;border:1px solid #28a745;border-radius:8px;padding:12px;margin:16px 0;font-size:14px;color:#155724;text-align:center;">',
       '      ✅ <strong>Factura timbrada exitosamente</strong>',

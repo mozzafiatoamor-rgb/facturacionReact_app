@@ -141,6 +141,7 @@ export interface CurrentOrder {
   notas: string
   mesero: string
   negocio: string
+  recibo?: string  // número de recibo (solo Mozzafiato)
 }
 
 // ── Catálogo SAT
@@ -187,6 +188,7 @@ export interface LinkRecord {
   fecha: string
   hora: string
   negocio: string
+  recibo?: string
   creado: string
   expira: string
   expired: boolean
