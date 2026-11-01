@@ -8,6 +8,7 @@ import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { StatusBar } from '../components/layout/StatusBar'
 import { useToast } from '../hooks/useToast'
+import { useUsuarios } from '../hooks/useSheets'
 import { TIPOS_PAGO } from '../api/config'
 import { buildLlevarUrl, buildWhatsAppUrl, buildWhatsAppMessage } from '../utils/llevar'
 import { validateRecibo } from '../api/appscript'
@@ -41,6 +42,34 @@ export function MeseroPage({ initial, onGenerarFactura, onBack, userName }: Mese
   const [validatingRecibo, setValidatingRecibo] = useState(false)
   const [reciboValidated, setReciboValidated] = useState<boolean | null>(null) // null=no validado, true=ok, false=error
   const [reciboError, setReciboError] = useState('')
+  // Manager override
+  const [showAuthModal, setShowAuthModal] = useState(false)
+  const [authPin, setAuthPin] = useState('')
+  const [authMotivo, setAuthMotivo] = useState('')
+  const [managerOverride, setManagerOverride] = useState(false)
+  const [overrideManager, setOverrideManager] = useState('')
+  const { data: usuarios } = useUsuarios()
+
+  // Determinar si los botones deben bloquearse
+  const reciboBlocked = negocio === 'mozzafiato' && reciboValidated === false && !managerOverride
+
+  function handleAuthSubmit() {
+    if (!authPin.trim()) { toast('Ingresa el PIN del gerente', 'error'); return }
+    if (!authMotivo.trim()) { toast('Ingresa el motivo de la autorización', 'error'); return }
+    const manager = (usuarios ?? []).find(
+      u => u.pin === authPin.trim() && (u.rol === 'admin' || u.rol === 'contable') && u.activo
+    )
+    if (!manager) {
+      toast('PIN inválido o sin permisos de gerente', 'error')
+      return
+    }
+    setManagerOverride(true)
+    setOverrideManager(manager.nombre)
+    setShowAuthModal(false)
+    setAuthPin('')
+    setAuthMotivo('')
+    toast(`Autorizado por ${manager.nombre}`, 'success')
+  }
 
   async function handleValidateRecibo() {
     if (negocio !== 'mozzafiato' || !recibo.trim() || !monto) return
@@ -76,8 +105,8 @@ export function MeseroPage({ initial, onGenerarFactura, onBack, userName }: Mese
     if (!monto || parseFloat(monto) <= 0) { toast('Monto inválido', 'error'); return false }
     if (!tipoPago) { toast('Selecciona el tipo de pago', 'error'); return false }
     if (negocio === 'mozzafiato' && !recibo.trim()) { toast('Ingresa el número de recibo', 'error'); return false }
-    if (negocio === 'mozzafiato' && reciboValidated === false) {
-      toast('El recibo no pasó la validación con Loyverse', 'error')
+    if (negocio === 'mozzafiato' && reciboValidated === false && !managerOverride) {
+      toast('El recibo no pasó la validación. Solicita autorización del gerente.', 'error')
       return false
     }
     return true
@@ -316,7 +345,7 @@ export function MeseroPage({ initial, onGenerarFactura, onBack, userName }: Mese
                     </label>
                     <input
                       value={recibo}
-                      onChange={(e) => { setRecibo(e.target.value); setReciboValidated(null); setReciboError('') }}
+                      onChange={(e) => { setRecibo(e.target.value); setReciboValidated(null); setReciboError(''); setManagerOverride(false) }}
                       onBlur={() => { if (recibo.trim() && monto) handleValidateRecibo() }}
                       type="text"
                       inputMode="numeric"
@@ -379,12 +408,32 @@ export function MeseroPage({ initial, onGenerarFactura, onBack, userName }: Mese
                   />
                 </div>
 
+                {/* Aviso de bloqueo + botón autorización */}
+                {reciboBlocked && (
+                  <div className="mb-3 p-3 rounded-lg bg-red-500/10 border border-red-500/30">
+                    <p className="text-red-400 text-xs mb-2">⚠️ Recibo no validado. Los botones están bloqueados.</p>
+                    <button
+                      onClick={() => setShowAuthModal(true)}
+                      className="btn w-full text-sm font-bold bg-yellow-500/20 text-yellow-400 border border-yellow-500/30"
+                    >
+                      🔑 Solicitar autorización del gerente
+                    </button>
+                  </div>
+                )}
+
+                {/* Badge de override autorizado */}
+                {managerOverride && reciboValidated === false && (
+                  <div className="mb-3 p-2 rounded-lg bg-yellow-500/10 border border-yellow-500/30 text-center">
+                    <p className="text-yellow-400 text-xs">✅ Autorizado por <strong>{overrideManager}</strong></p>
+                  </div>
+                )}
+
                 {/* Botones de acción */}
                 <div className="flex flex-col gap-3">
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       onClick={handleEnviarWhatsApp}
-                      disabled={sendingLink || copyingLink}
+                      disabled={sendingLink || copyingLink || reciboBlocked || validatingRecibo}
                       className="btn text-sm font-bold disabled:opacity-50"
                       style={{ background: '#25D366', color: '#fff' }}
                     >
@@ -392,7 +441,7 @@ export function MeseroPage({ initial, onGenerarFactura, onBack, userName }: Mese
                     </button>
                     <button
                       onClick={handleCopiarMensaje}
-                      disabled={sendingLink || copyingLink}
+                      disabled={sendingLink || copyingLink || reciboBlocked || validatingRecibo}
                       className="btn text-sm font-bold disabled:opacity-50 bg-blue-500/20 text-blue-400 border border-blue-500/30"
                     >
                       {copyingLink ? 'Generando...' : copied ? 'Copiado!' : 'Copiar mensaje'}
@@ -407,7 +456,7 @@ export function MeseroPage({ initial, onGenerarFactura, onBack, userName }: Mese
 
                   <button
                     onClick={handleGenerarFactura}
-                    disabled={sendingLink || copyingLink}
+                    disabled={sendingLink || copyingLink || reciboBlocked || validatingRecibo}
                     className="btn w-full bg-surface2 border border-white/10 text-white text-sm"
                   >
                     Generar factura para el cliente
@@ -418,6 +467,76 @@ export function MeseroPage({ initial, onGenerarFactura, onBack, userName }: Mese
           )}
         </AnimatePresence>
       </div>
+
+      {/* Modal de autorización del gerente */}
+      <AnimatePresence>
+        {showAuthModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+            onClick={() => setShowAuthModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-surface rounded-2xl p-6 w-full max-w-sm shadow-xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 className="text-white font-bold text-lg mb-1">🔑 Autorización de Gerente</h3>
+              <p className="text-muted text-xs mb-4">
+                El recibo no pasó la validación. Un gerente debe autorizar para continuar.
+              </p>
+              {reciboError && (
+                <div className="mb-3 p-2 rounded bg-red-500/10 border border-red-500/20">
+                  <p className="text-red-400 text-xs">{reciboError}</p>
+                </div>
+              )}
+              <div className="mb-3">
+                <label className="block text-xs text-muted font-medium mb-1">PIN del Gerente</label>
+                <input
+                  value={authPin}
+                  onChange={(e) => setAuthPin(e.target.value)}
+                  type="password"
+                  inputMode="numeric"
+                  placeholder="****"
+                  className="input text-center text-lg tracking-widest"
+                  autoComplete="off"
+                  autoFocus
+                />
+              </div>
+              <div className="mb-4">
+                <label className="block text-xs text-muted font-medium mb-1">Motivo</label>
+                <input
+                  value={authMotivo}
+                  onChange={(e) => setAuthMotivo(e.target.value)}
+                  type="text"
+                  placeholder="Ej: Descuento autorizado, ajuste de cuenta..."
+                  className="input text-sm"
+                  autoComplete="off"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => { setShowAuthModal(false); setAuthPin(''); setAuthMotivo('') }}
+                  className="btn bg-surface2 border border-white/10 text-muted text-sm"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleAuthSubmit}
+                  className="btn text-sm font-bold"
+                  style={{ background: '#C45C2C', color: '#fff' }}
+                >
+                  Autorizar
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
