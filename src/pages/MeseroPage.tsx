@@ -30,7 +30,7 @@ export function MeseroPage({ initial, onGenerarFactura, onBack, userName }: Mese
   const { toast } = useToast()
   const [negocio,  setNegocio ] = useState(initial?.negocio  ?? '')
   const [pendingNegocio, setPendingNegocio] = useState<string | null>(null)
-  const [mesa,     setMesa    ] = useState(initial?.mesa     ?? '')
+  const mesa = '' // Campo eliminado — se mantiene para compatibilidad con el modelo
   const [monto,    setMonto   ] = useState(initial?.monto    ?? '')
   const [tipoPago, setTipoPago] = useState(initial?.tipoPago ?? '')
   const [notas,    setNotas   ] = useState(initial?.notas    ?? '')
@@ -112,7 +112,6 @@ export function MeseroPage({ initial, onGenerarFactura, onBack, userName }: Mese
 
   function validate(): boolean {
     if (!negocio) { toast('Selecciona el negocio', 'error'); return false }
-    if (!mesa.trim()) { toast('Ingresa el número de mesa / habitación', 'error'); return false }
     if (!monto || parseFloat(monto) <= 0) { toast('Monto inválido', 'error'); return false }
     if (!tipoPago) { toast('Selecciona el tipo de pago', 'error'); return false }
     if (negocio === 'mozzafiato' && !recibo.trim()) { toast('Ingresa el número de recibo', 'error'); return false }
@@ -134,7 +133,7 @@ export function MeseroPage({ initial, onGenerarFactura, onBack, userName }: Mese
     try {
       const { date, time } = now()
       const url = await buildLlevarUrl({
-        mesa: mesa.trim(),
+        mesa,
         monto,
         tipoPago,
         mesero: userName,
@@ -163,7 +162,7 @@ export function MeseroPage({ initial, onGenerarFactura, onBack, userName }: Mese
       const { date, time } = now()
       const reciboVal = recibo.trim() || undefined
       const url = await buildLlevarUrl({
-        mesa: mesa.trim(), monto, tipoPago,
+        mesa, monto, tipoPago,
         mesero: userName, fecha: date, hora: time, negocio,
         ...(reciboVal ? { recibo: reciboVal } : {}),
       })
@@ -182,7 +181,7 @@ export function MeseroPage({ initial, onGenerarFactura, onBack, userName }: Mese
 
   function handleGenerarFactura() {
     if (!validate()) return
-    onGenerarFactura({ mesa: mesa.trim(), monto, tipoPago, notas: notas.trim(), mesero: userName, negocio, recibo: recibo.trim() || undefined })
+    onGenerarFactura({ mesa, monto, tipoPago, notas: notas.trim(), mesero: userName, negocio, recibo: recibo.trim() || undefined })
   }
 
   const neg = negocio ? getNegocio(negocio) : null
@@ -302,9 +301,7 @@ export function MeseroPage({ initial, onGenerarFactura, onBack, userName }: Mese
               transition={{ duration: 0.25 }}
             >
               <div className="text-center mb-5">
-                <h2 className="text-xl font-bold text-white">
-                  {neg?.id === 'casaregina' ? 'Datos de la Habitación' : 'Datos de la Mesa'}
-                </h2>
+                <h2 className="text-xl font-bold text-white">Datos de la Orden</h2>
                 <p className="text-sm text-muted mt-1">Ingresa la información de la orden</p>
               </div>
 
@@ -314,38 +311,7 @@ export function MeseroPage({ initial, onGenerarFactura, onBack, userName }: Mese
                 transition={{ duration: 0.3, delay: 0.05 }}
                 className="bg-surface border border-white/10 rounded-xl p-5"
               >
-                {/* Mesa + Monto */}
-                <div className="grid grid-cols-2 gap-3 mb-4">
-                  <div>
-                    <label className="block text-xs text-muted font-medium mb-1.5">
-                      {neg?.id === 'casaregina' ? 'Habitación' : 'Mesa'}
-                    </label>
-                    <input
-                      value={mesa}
-                      onChange={(e) => setMesa(e.target.value)}
-                      type="text"
-                      inputMode="numeric"
-                      placeholder={neg?.id === 'casaregina' ? 'Ej: 204' : 'Ej: 5'}
-                      className="input text-center text-lg font-bold"
-                      autoComplete="off"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-muted font-medium mb-1.5">Monto a Facturar</label>
-                    <input
-                      value={monto}
-                      onChange={(e) => setMonto(e.target.value)}
-                      type="number"
-                      inputMode="decimal"
-                      placeholder="0.00"
-                      step="0.01"
-                      className="input"
-                      autoComplete="off"
-                    />
-                  </div>
-                </div>
-
-                {/* Recibo # (solo Mozzafiato) — con validación Loyverse */}
+                {/* Recibo # (solo Mozzafiato) — primer campo, con validación Loyverse */}
                 {negocio === 'mozzafiato' && (
                   <div className="mb-4">
                     <label className="block text-xs text-muted font-medium mb-1.5">
@@ -361,12 +327,31 @@ export function MeseroPage({ initial, onGenerarFactura, onBack, userName }: Mese
                       type="text"
                       inputMode="numeric"
                       placeholder="Ej: 1234"
-                      className={`input ${reciboValidated === false ? 'border-red-500' : reciboValidated === true ? 'border-green-500' : ''}`}
+                      className={`input text-center text-lg font-bold ${reciboValidated === false ? 'border-red-500' : reciboValidated === true ? 'border-green-500' : ''}`}
                       autoComplete="off"
+                      autoFocus
                     />
                     {reciboError && <p className="text-red-400 text-xs mt-1">{reciboError}</p>}
                   </div>
                 )}
+
+                {/* Monto — grande y prominente */}
+                <div className="mb-4">
+                  <label className="block text-xs text-muted font-medium mb-1.5">Monto a Facturar</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-2xl font-bold text-white/40">$</span>
+                    <input
+                      value={monto}
+                      onChange={(e) => setMonto(e.target.value)}
+                      type="number"
+                      inputMode="decimal"
+                      placeholder="0.00"
+                      step="0.01"
+                      className="input text-center text-3xl font-bold py-4 pl-8"
+                      autoComplete="off"
+                    />
+                  </div>
+                </div>
 
                 {/* Tipo de pago */}
                 <div className="mb-4">
