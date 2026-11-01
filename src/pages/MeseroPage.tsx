@@ -72,7 +72,7 @@ export function MeseroPage({ initial, onGenerarFactura, onBack, userName }: Mese
   }
 
   async function handleValidateRecibo() {
-    if (negocio !== 'mozzafiato' || !recibo.trim() || !monto) return
+    if (negocio !== 'mozzafiato' || !recibo.trim()) return
     setValidatingRecibo(true)
     setReciboValidated(null)
     setReciboError('')
@@ -83,14 +83,25 @@ export function MeseroPage({ initial, onGenerarFactura, onBack, userName }: Mese
         setReciboError('Recibo no encontrado en Loyverse')
         return
       }
-      const montoNum = parseFloat(monto)
-      if (Math.abs(result.total - montoNum) > 0.50) {
-        setReciboValidated(false)
-        setReciboError(`Monto no coincide: Loyverse $${result.total.toFixed(2)} vs capturado $${montoNum.toFixed(2)}`)
-        return
+      // Auto-llenar el monto con el total de Loyverse
+      const loyverseTotal = result.total.toFixed(2)
+      if (!monto || parseFloat(monto) === 0) {
+        // Si no hay monto capturado, llenarlo automáticamente
+        setMonto(loyverseTotal)
+        setReciboValidated(true)
+        setReciboError('')
+        toast(`Monto $${loyverseTotal} cargado de Loyverse`, 'success')
+      } else {
+        // Si ya hay monto, comparar
+        const montoNum = parseFloat(monto)
+        if (Math.abs(result.total - montoNum) > 0.50) {
+          setReciboValidated(false)
+          setReciboError(`Monto no coincide: Loyverse $${loyverseTotal} vs capturado $${montoNum.toFixed(2)}`)
+          return
+        }
+        setReciboValidated(true)
+        setReciboError('')
       }
-      setReciboValidated(true)
-      setReciboError('')
     } catch {
       setReciboValidated(false)
       setReciboError('Error al consultar Loyverse')
@@ -346,7 +357,7 @@ export function MeseroPage({ initial, onGenerarFactura, onBack, userName }: Mese
                     <input
                       value={recibo}
                       onChange={(e) => { setRecibo(e.target.value); setReciboValidated(null); setReciboError(''); setManagerOverride(false) }}
-                      onBlur={() => { if (recibo.trim() && monto) handleValidateRecibo() }}
+                      onBlur={() => { if (recibo.trim()) handleValidateRecibo() }}
                       type="text"
                       inputMode="numeric"
                       placeholder="Ej: 1234"
