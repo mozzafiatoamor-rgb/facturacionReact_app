@@ -50,8 +50,12 @@ export function MeseroPage({ initial, onGenerarFactura, onBack, userName }: Mese
   const [overrideManager, setOverrideManager] = useState('')
   const { data: usuarios } = useUsuarios()
 
-  // Determinar si los botones deben bloquearse
-  const reciboBlocked = negocio === 'mozzafiato' && reciboValidated === false && !managerOverride
+  // Determinar si los botones deben bloquearse:
+  // - recibo vacío sin autorización → bloqueado
+  // - recibo con error de validación sin autorización → bloqueado
+  const reciboMissing = negocio === 'mozzafiato' && !recibo.trim() && !managerOverride
+  const reciboFailed  = negocio === 'mozzafiato' && reciboValidated === false && !managerOverride
+  const reciboBlocked = reciboMissing || reciboFailed
 
   function handleAuthSubmit() {
     if (!authPin.trim()) { toast('Ingresa el PIN del gerente', 'error'); return }
@@ -114,7 +118,10 @@ export function MeseroPage({ initial, onGenerarFactura, onBack, userName }: Mese
     if (!negocio) { toast('Selecciona el negocio', 'error'); return false }
     if (!monto || parseFloat(monto) <= 0) { toast('Monto inválido', 'error'); return false }
     if (!tipoPago) { toast('Selecciona el tipo de pago', 'error'); return false }
-    if (negocio === 'mozzafiato' && !recibo.trim()) { toast('Ingresa el número de recibo', 'error'); return false }
+    if (negocio === 'mozzafiato' && !recibo.trim() && !managerOverride) {
+      toast('Se requiere número de recibo o autorización del gerente.', 'error')
+      return false
+    }
     if (negocio === 'mozzafiato' && reciboValidated === false && !managerOverride) {
       toast('El recibo no pasó la validación. Solicita autorización del gerente.', 'error')
       return false
@@ -407,7 +414,11 @@ export function MeseroPage({ initial, onGenerarFactura, onBack, userName }: Mese
                 {/* Aviso de bloqueo + botón autorización */}
                 {reciboBlocked && (
                   <div className="mb-3 p-3 rounded-lg bg-red-500/10 border border-red-500/30">
-                    <p className="text-red-400 text-xs mb-2">⚠️ Recibo no validado. Los botones están bloqueados.</p>
+                    <p className="text-red-400 text-xs mb-2">
+                      {reciboMissing
+                        ? '⚠️ Se requiere número de recibo para continuar.'
+                        : '⚠️ Recibo no validado. Los botones están bloqueados.'}
+                    </p>
                     <button
                       onClick={() => setShowAuthModal(true)}
                       className="btn w-full text-sm font-bold bg-yellow-500/20 text-yellow-400 border border-yellow-500/30"
@@ -418,7 +429,7 @@ export function MeseroPage({ initial, onGenerarFactura, onBack, userName }: Mese
                 )}
 
                 {/* Badge de override autorizado */}
-                {managerOverride && reciboValidated === false && (
+                {managerOverride && (reciboValidated === false || !recibo.trim()) && (
                   <div className="mb-3 p-2 rounded-lg bg-yellow-500/10 border border-yellow-500/30 text-center">
                     <p className="text-yellow-400 text-xs">✅ Autorizado por <strong>{overrideManager}</strong></p>
                   </div>
