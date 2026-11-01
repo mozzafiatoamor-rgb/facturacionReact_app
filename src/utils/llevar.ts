@@ -152,6 +152,15 @@ function buildScriptUrl(deployId: string): string {
 }
 
 /**
+ * Reconstruye la URL completa a partir de un código de link existente.
+ */
+export function buildLlevarUrlFromCode(code: string): string {
+  const base = window.location.origin + import.meta.env.BASE_URL
+  const deployId = getDeploymentId()
+  return `${base}?llevar=${code}.${deployId}`
+}
+
+/**
  * Genera la URL completa del formulario para llevar (con link corto vía API).
  * Formato: ?llevar=CODE.DEPLOYMENT_ID
  */

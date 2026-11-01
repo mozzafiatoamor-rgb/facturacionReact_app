@@ -220,3 +220,15 @@ export async function getLink(code: string): Promise<LinkPayload> {
   const res = await post<{ payload: LinkPayload }>({ action: 'getLink', code })
   return res.payload
 }
+
+// ── BUSCAR LINK EXISTENTE POR RECIBO ─────────────────────
+export interface ExistingLink {
+  found: boolean
+  code?: string
+  monto?: string
+  creado?: string
+}
+
+export async function findLinkByRecibo(receiptNumber: string): Promise<ExistingLink> {
+  return post<ExistingLink>({ action: 'findLinkByRecibo', receiptNumber })
+}

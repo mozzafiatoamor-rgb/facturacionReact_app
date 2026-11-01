@@ -10,8 +10,8 @@ import { StatusBar } from '../components/layout/StatusBar'
 import { useToast } from '../hooks/useToast'
 import { useUsuarios } from '../hooks/useSheets'
 import { TIPOS_PAGO } from '../api/config'
-import { buildLlevarUrl, buildWhatsAppUrl, buildWhatsAppMessage } from '../utils/llevar'
-import { validateRecibo } from '../api/appscript'
+import { buildLlevarUrl, buildLlevarUrlFromCode, buildWhatsAppUrl, buildWhatsAppMessage } from '../utils/llevar'
+import { validateRecibo, findLinkByRecibo } from '../api/appscript'
 import { now } from '../utils/dates'
 import { NEGOCIO_LIST, getNegocio } from '../config/businesses'
 import { getLogo } from '../assets/logos'
@@ -48,6 +48,9 @@ export function MeseroPage({ initial, onGenerarFactura, onBack, userName }: Mese
   const [authMotivo, setAuthMotivo] = useState('')
   const [managerOverride, setManagerOverride] = useState(false)
   const [overrideManager, setOverrideManager] = useState('')
+  // Link existente
+  const [existingLinkCode, setExistingLinkCode] = useState<string | null>(null)
+  const [existingLinkUrl, setExistingLinkUrl] = useState('')
   const { data: usuarios } = useUsuarios()
 
   // Determinar si los botones deben bloquearse:
@@ -80,7 +83,23 @@ export function MeseroPage({ initial, onGenerarFactura, onBack, userName }: Mese
     setValidatingRecibo(true)
     setReciboValidated(null)
     setReciboError('')
+    setExistingLinkCode(null)
+    setExistingLinkUrl('')
     try {
+      // 1. Buscar si ya existe un link para este recibo
+      const linkResult = await findLinkByRecibo(recibo.trim())
+      if (linkResult.found && linkResult.code) {
+        const url = buildLlevarUrlFromCode(linkResult.code)
+        setExistingLinkCode(linkResult.code)
+        setExistingLinkUrl(url)
+        setMonto(linkResult.monto || '')
+        setReciboValidated(true)
+        setReciboError('')
+        toast('Este recibo ya tiene un link generado. Puedes reenviarlo.', 'info')
+        return
+      }
+
+      // 2. Validar con Loyverse
       const result = await validateRecibo(recibo.trim())
       if (!result.found) {
         setReciboValidated(false)
@@ -90,13 +109,11 @@ export function MeseroPage({ initial, onGenerarFactura, onBack, userName }: Mese
       // Auto-llenar el monto con el total de Loyverse
       const loyverseTotal = result.total.toFixed(2)
       if (!monto || parseFloat(monto) === 0) {
-        // Si no hay monto capturado, llenarlo automáticamente
         setMonto(loyverseTotal)
         setReciboValidated(true)
         setReciboError('')
         toast(`Monto $${loyverseTotal} cargado de Loyverse`, 'success')
       } else {
-        // Si ya hay monto, comparar
         const montoNum = parseFloat(monto)
         if (Math.abs(result.total - montoNum) > 0.50) {
           setReciboValidated(false)
@@ -329,7 +346,7 @@ export function MeseroPage({ initial, onGenerarFactura, onBack, userName }: Mese
                     </label>
                     <input
                       value={recibo}
-                      onChange={(e) => { setRecibo(e.target.value); setReciboValidated(null); setReciboError(''); setManagerOverride(false) }}
+                      onChange={(e) => { setRecibo(e.target.value); setReciboValidated(null); setReciboError(''); setManagerOverride(false); setExistingLinkCode(null); setExistingLinkUrl('') }}
                       onBlur={() => { if (recibo.trim()) handleValidateRecibo() }}
                       type="text"
                       inputMode="numeric"
@@ -435,40 +452,80 @@ export function MeseroPage({ initial, onGenerarFactura, onBack, userName }: Mese
                   </div>
                 )}
 
-                {/* Botones de acción */}
-                <div className="flex flex-col gap-3">
-                  <div className="grid grid-cols-2 gap-2">
+                {/* Link existente detectado */}
+                {existingLinkCode && (
+                  <div className="mb-3 p-3 rounded-xl bg-blue-500/10 border border-blue-500/30">
+                    <p className="text-blue-400 text-sm font-bold mb-1">🔗 Este recibo ya tiene un link</p>
+                    <p className="text-blue-300/70 text-xs mb-3">No se puede generar otro. Reenvía el existente:</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        onClick={() => {
+                          const num = whatsapp.replace(/\D/g, '')
+                          if (num.length < 10) { toast('Ingresa un WhatsApp válido', 'error'); return }
+                          const full = num.length === 10 ? `52${num}` : num
+                          const neg2 = getNegocio(negocio)
+                          const msg = encodeURIComponent(buildWhatsAppMessage(existingLinkUrl, monto, neg2.name, undefined, recibo.trim()))
+                          window.open(`https://wa.me/${full}?text=${msg}`, '_blank')
+                          toast('Link reenviado por WhatsApp')
+                        }}
+                        className="btn text-sm font-bold"
+                        style={{ background: '#25D366', color: '#fff' }}
+                      >
+                        Reenviar WhatsApp
+                      </button>
+                      <button
+                        onClick={async () => {
+                          const neg2 = getNegocio(negocio)
+                          const msg = buildWhatsAppMessage(existingLinkUrl, monto, neg2.name, undefined, recibo.trim())
+                          await navigator.clipboard.writeText(msg)
+                          setCopied(true)
+                          toast('Mensaje copiado al portapapeles')
+                          setTimeout(() => setCopied(false), 3000)
+                        }}
+                        className="btn text-sm font-bold bg-blue-500/20 text-blue-400 border border-blue-500/30"
+                      >
+                        {copied ? 'Copiado!' : 'Copiar mensaje'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Botones de acción (solo si no hay link existente) */}
+                {!existingLinkCode && (
+                  <div className="flex flex-col gap-3">
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        onClick={handleEnviarWhatsApp}
+                        disabled={sendingLink || copyingLink || reciboBlocked || validatingRecibo}
+                        className="btn text-sm font-bold disabled:opacity-50"
+                        style={{ background: '#25D366', color: '#fff' }}
+                      >
+                        {sendingLink ? 'Generando...' : 'Enviar WhatsApp'}
+                      </button>
+                      <button
+                        onClick={handleCopiarMensaje}
+                        disabled={sendingLink || copyingLink || reciboBlocked || validatingRecibo}
+                        className="btn text-sm font-bold disabled:opacity-50 bg-blue-500/20 text-blue-400 border border-blue-500/30"
+                      >
+                        {copyingLink ? 'Generando...' : copied ? 'Copiado!' : 'Copiar mensaje'}
+                      </button>
+                    </div>
+
+                    <div className="relative flex items-center my-1">
+                      <div className="flex-1 border-t border-white/10" />
+                      <span className="px-3 text-xs text-muted">o</span>
+                      <div className="flex-1 border-t border-white/10" />
+                    </div>
+
                     <button
-                      onClick={handleEnviarWhatsApp}
+                      onClick={handleGenerarFactura}
                       disabled={sendingLink || copyingLink || reciboBlocked || validatingRecibo}
-                      className="btn text-sm font-bold disabled:opacity-50"
-                      style={{ background: '#25D366', color: '#fff' }}
+                      className="btn w-full bg-surface2 border border-white/10 text-white text-sm"
                     >
-                      {sendingLink ? 'Generando...' : 'Enviar WhatsApp'}
-                    </button>
-                    <button
-                      onClick={handleCopiarMensaje}
-                      disabled={sendingLink || copyingLink || reciboBlocked || validatingRecibo}
-                      className="btn text-sm font-bold disabled:opacity-50 bg-blue-500/20 text-blue-400 border border-blue-500/30"
-                    >
-                      {copyingLink ? 'Generando...' : copied ? 'Copiado!' : 'Copiar mensaje'}
+                      Generar factura para el cliente
                     </button>
                   </div>
-
-                  <div className="relative flex items-center my-1">
-                    <div className="flex-1 border-t border-white/10" />
-                    <span className="px-3 text-xs text-muted">o</span>
-                    <div className="flex-1 border-t border-white/10" />
-                  </div>
-
-                  <button
-                    onClick={handleGenerarFactura}
-                    disabled={sendingLink || copyingLink || reciboBlocked || validatingRecibo}
-                    className="btn w-full bg-surface2 border border-white/10 text-white text-sm"
-                  >
-                    Generar factura para el cliente
-                  </button>
-                </div>
+                )}
               </motion.div>
             </motion.div>
           )}

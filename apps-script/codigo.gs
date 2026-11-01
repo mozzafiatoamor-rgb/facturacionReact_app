@@ -318,6 +318,27 @@ function doPost(e) {
       if (!found) throw new Error('Link no encontrado: ' + code);
       result = { success: true, payload: JSON.parse(found) };
 
+    // ── findLinkByRecibo: busca si ya existe un link para un número de recibo
+    } else if (data.action === 'findLinkByRecibo') {
+      var sheet = ss.getSheetByName('🔗 Links');
+      result = { success: true, found: false };
+      if (sheet && sheet.getLastRow() >= 2) {
+        var rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, 4).getValues(); // Código, Payload, Creado, Expira
+        var recNum = String(data.receiptNumber || '').trim();
+        for (var li = rows.length - 1; li >= 0; li--) { // buscar de más reciente a más antiguo
+          try {
+            var pl = JSON.parse(rows[li][1]);
+            if (String(pl.r || '') === recNum) {
+              // Verificar que no esté expirado
+              if (pl.e && Date.now() <= pl.e) {
+                result = { success: true, found: true, code: rows[li][0], monto: pl.$ || '', creado: rows[li][2] };
+                break;
+              }
+            }
+          } catch(e) { /* skip malformed */ }
+        }
+      }
+
     // ── savePromos: guarda/actualiza promos cruzadas en hoja 📢 Promos
     } else if (data.action === 'savePromos') {
       var promoSheet = ss.getSheetByName('📢 Promos');
