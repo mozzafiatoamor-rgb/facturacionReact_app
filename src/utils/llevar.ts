@@ -93,14 +93,14 @@ export function decodeLlevar(encoded: string): LlevarData | null {
       if (raw.s && raw.a && raw.u) {
         data.config = { sheetId: raw.s, apiKey: raw.a, scriptUrl: raw.u }
       }
-      if (!data.mesa || !data.monto || !data.exp) return null
+      if (!data.monto || !data.exp) return null
       return data
     }
 
     // Formato legacy
     const data = raw as LlevarData
     if (!data.negocio) data.negocio = 'mozzafiato'
-    if (!data.mesa || !data.monto || !data.exp) return null
+    if (!data.monto || !data.exp) return null
     return data
   } catch {
     return null
@@ -211,7 +211,7 @@ export async function resolveShortLink(param: string): Promise<LlevarData | null
     if (!json.success || !json.payload) return null
 
     const p = json.payload as Record<string, string | number>
-    if (!p.m || !p.$ || !p.e) return null
+    if (!p.$ || !p.e) return null
     if (Date.now() > (p.e as number)) return null
 
     // Construir config para el cliente a partir de lo que guardó createLink
